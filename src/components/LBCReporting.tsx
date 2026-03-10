@@ -359,7 +359,7 @@ const LBCReporting = ({ selectedSample, onBack }) => {
                             Atypical - NOS
                           </Label>
                           <div className="flex flex-wrap gap-2">
-                            {["ASC-US", "ASC-H", "LSIL", "HSIL"].map((btn) => (
+                            {["ASC-US", "ASC-H", "LSIL", "HSIL" , "LSIL-H"].map((btn) => (
                               <ActionButton
                                 key={btn}
                                 label={btn}
@@ -549,6 +549,7 @@ const LBCReporting = ({ selectedSample, onBack }) => {
                           "Actinomyces",
                           "HSV",
                           "CMV",
+                          "Doderlein Bacilli",
                         ].map((opt) => (
                           <ActionButton
                             key={opt}
