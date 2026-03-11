@@ -17,6 +17,7 @@ import {
   Stethoscope,
   Printer,
   ArrowUpRight,
+  CheckCircle,
 } from "lucide-react";
 
 const LBCReporting = ({ selectedSample, onBack }) => {
@@ -359,22 +360,24 @@ const LBCReporting = ({ selectedSample, onBack }) => {
                             Atypical - NOS
                           </Label>
                           <div className="flex flex-wrap gap-2">
-                            {["ASC-US", "ASC-H", "LSIL", "HSIL" , "LSIL-H"].map((btn) => (
-                              <ActionButton
-                                key={btn}
-                                label={btn}
-                                // ✅ Check if this button is inside the array
-                                active={selectedResults.includes(btn)}
-                                // ✅ Toggle the selection in the array
-                                onClick={() =>
-                                  toggleMultiSelect(
-                                    selectedResults,
-                                    setSelectedResults,
-                                    btn,
-                                  )
-                                }
-                              />
-                            ))}
+                            {["ASC-US", "ASC-H", "LSIL", "HSIL", "LSIL-H"].map(
+                              (btn) => (
+                                <ActionButton
+                                  key={btn}
+                                  label={btn}
+                                  // ✅ Check if this button is inside the array
+                                  active={selectedResults.includes(btn)}
+                                  // ✅ Toggle the selection in the array
+                                  onClick={() =>
+                                    toggleMultiSelect(
+                                      selectedResults,
+                                      setSelectedResults,
+                                      btn,
+                                    )
+                                  }
+                                />
+                              ),
+                            )}
                           </div>
                         </div>
                         <div className="space-y-3">
@@ -651,10 +654,11 @@ const LBCReporting = ({ selectedSample, onBack }) => {
         </div>
 
         {/* RIGHT COLUMN: PREVIEW & FINALIZATION */}
+        {/* RIGHT COLUMN: PREVIEW & FINALIZATION */}
         <div className="lg:col-span-1">
           <div className="sticky top-24 space-y-6">
-            <Card className="border-none shadow-xl ring-1 ring-slate-200 overflow-hidden bg-white">
-              <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between">
+            <Card className="border-none shadow-xl ring-1 ring-slate-200 overflow-hidden bg-white flex flex-col min-h-[600px]">
+              <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between shrink-0">
                 <span className="text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
                   <Printer className="h-4 w-4 text-blue-400" /> Live Report
                   Preview
@@ -673,7 +677,7 @@ const LBCReporting = ({ selectedSample, onBack }) => {
                   </div>
                 ))}
 
-                {/* 3. FOOTER DISCLAIMER (Exactly as per screenshot) */}
+                {/* FOOTER DISCLAIMER */}
                 <div className="pt-4 border-t border-dashed">
                   <p className="text-[9px] text-slate-400 italic leading-tight">
                     Pre-analytical and analytical quality parameters including
@@ -682,6 +686,32 @@ const LBCReporting = ({ selectedSample, onBack }) => {
                   </p>
                 </div>
               </CardContent>
+
+              {/* NEW SECTION: REPORT ACTIONS */}
+              <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3 shrink-0">
+                <Button
+                  variant="outline"
+                  className="w-full py-6 border-blue-600 text-blue-600 font-bold hover:bg-blue-50 transition-colors uppercase tracking-widest text-[11px]"
+                  onClick={() => {
+                    // This will trigger the PDF generation logic we discussed
+                    console.log("Opening PDF Preview...");
+                  }}
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  Report Preview
+                </Button>
+
+                <Button
+                  className="w-full py-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg transition-all uppercase tracking-widest text-[11px]"
+                  onClick={() => {
+                    // This will finalize and save the report data
+                    console.log("Finalizing Report...");
+                  }}
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Finalize Report
+                </Button>
+              </div>
             </Card>
           </div>
         </div>
