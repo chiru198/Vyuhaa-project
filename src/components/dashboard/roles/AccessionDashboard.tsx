@@ -12,6 +12,7 @@ import {
   Beaker,
   Badge,
   Activity,
+  Hospital,
 } from "lucide-react";
 import StatsCards from "../StatsCards";
 import { useToast } from "@/hooks/use-toast";
@@ -56,6 +57,9 @@ const AccessionDashboard = ({
   const [selectedLabName, setSelectedLabName] = useState<string>("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
+  const [doctorName, setDoctorName] = useState("");
+  const [hospitalName, setHospitalName] = useState("");
+  const [clinicalHistory, setClinicalHistory] = useState("");
   // Fetch only patients who don't have a barcode assigned yet
   // const fetchPendingPatients = async () => {
   //   setFetchingPatients(true);
@@ -87,6 +91,8 @@ const AccessionDashboard = ({
   }, []); // Empty brackets means "Run once on page load"
   const handleCreateSample = async () => {
     const loggedInUserUuid = localStorage.getItem("user_id");
+
+    // ✅ Added the 3 new fields to the payload
     const payload = {
       barcode: barcode,
       patient_name: manualPatientName,
@@ -94,26 +100,43 @@ const AccessionDashboard = ({
       gender: gender,
       lab_id: labId,
       sample_type: sampleType,
-      accession_id: loggedInUserUuid, // Replace with the actual ID of the logged-in Accession user
+      accession_id: loggedInUserUuid,
+      doctor_name: doctorName, // Added
+      hospital_name: hospitalName, // Added
+      clinical_history: clinicalHistory, // Added
       status: "received",
     };
 
-    const response = await fetch(
-      "http://localhost:5000/api/accession/add-sample",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      },
-    );
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/accession/add-sample",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
 
-    if (response.ok) {
-      alert("Sample successfully moved to Technician Queue");
-      // Clear states
-      setManualPatientName("");
-      setBarcode("");
-      setLabId("");
-      setSelectedLabName("");
+      if (response.ok) {
+        alert("Sample successfully moved to Technician Queue");
+
+        //  Clear all states including the new ones
+        setManualPatientName("");
+        setBarcode("");
+        setLabId("");
+        setSelectedLabName("");
+        setAge("");
+        setGender("");
+        setDoctorName(""); // Clear new field
+        setHospitalName(""); // Clear new field
+        setClinicalHistory(""); // Clear new field
+      } else {
+        const errorData = await response.json();
+        alert("Error: " + errorData.details);
+      }
+    } catch (error) {
+      console.error("Network Error:", error);
+      alert("Failed to connect to the server.");
     }
   };
   // --- THE FIX IS HERE ---
@@ -258,7 +281,7 @@ const AccessionDashboard = ({
           <Card className="border-none shadow-2xl ring-1 ring-slate-200">
             <CardContent className="p-10">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                {/* 1. MANUAL PATIENT NAME */}
+                {/* --- PRIMARY PATIENT DATA --- */}
                 <div className="space-y-2">
                   <Label className="text-sm font-bold text-slate-700">
                     Patient Full Name
@@ -274,7 +297,6 @@ const AccessionDashboard = ({
                   </div>
                 </div>
 
-                {/* 2. BARCODE ENTRY */}
                 <div className="space-y-2">
                   <Label className="text-sm font-bold text-slate-700">
                     Barcode / Sample ID
@@ -290,48 +312,6 @@ const AccessionDashboard = ({
                   </div>
                 </div>
 
-                {/* 3. LAB SELECTION (Automated ID Fetch) */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-slate-700">
-                    Destination Lab
-                  </Label>
-                  <select
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    value={selectedLabName}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      setSelectedLabName(name);
-                      // Find ID from the labs array
-                      const foundLab = labs.find((l: any) => l.name === name);
-                      if (foundLab) setLabId(foundLab.id);
-                    }}
-                  >
-                    <option value="">Select Lab...</option>
-                    {labs.map((lab: any) => (
-                      <option key={lab.id} value={lab.name}>
-                        {lab.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 4. TEST TYPE */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-slate-700">
-                    Test Type
-                  </Label>
-                  <select
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    value={sampleType}
-                    onChange={(e) => setSampleType(e.target.value)}
-                  >
-                    <option value="">Select Test...</option>
-                    <option value="CO-TEST">CO-TEST</option>
-                    <option value="LBC">LBC</option>
-                    <option value="HPV">HPV</option>
-                  </select>
-                </div>
-                {/* AGE FIELD */}
                 <div className="space-y-2">
                   <Label className="text-sm font-bold text-slate-700">
                     Age
@@ -345,7 +325,6 @@ const AccessionDashboard = ({
                   />
                 </div>
 
-                {/* GENDER SELECTION */}
                 <div className="space-y-2">
                   <Label className="text-sm font-bold text-slate-700">
                     Gender
@@ -361,6 +340,101 @@ const AccessionDashboard = ({
                     <option value="Other">Other</option>
                   </select>
                 </div>
+
+                {/* --- MEDICAL CONTEXT (NEW FIELDS) --- */}
+                <div className="col-span-full pt-4 mt-2 border-t border-slate-100">
+                  <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4">
+                    Medical Context
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold text-slate-700">
+                    Referring Doctor
+                  </Label>
+                  <div className="relative">
+                    <Stethoscope className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <input
+                      placeholder="Dr. Name"
+                      value={doctorName}
+                      onChange={(e) => setDoctorName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold text-slate-700">
+                    Hospital / Clinic
+                  </Label>
+                  <div className="relative">
+                    <Hospital className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <input
+                      placeholder="Hospital Name"
+                      value={hospitalName}
+                      onChange={(e) => setHospitalName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="col-span-full space-y-2">
+                  <Label className="text-sm font-bold text-slate-700">
+                    Clinical History / Symptoms
+                  </Label>
+                  <textarea
+                    placeholder="Enter patient clinical history or relevant symptoms..."
+                    value={clinicalHistory}
+                    onChange={(e) => setClinicalHistory(e.target.value)}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px] transition-all"
+                  />
+                </div>
+
+                {/* --- LOGISTICS --- */}
+                <div className="col-span-full pt-4 mt-2 border-t border-slate-100">
+                  <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4">
+                    Logistics
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold text-slate-700">
+                    Destination Lab
+                  </Label>
+                  <select
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={selectedLabName}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      setSelectedLabName(name);
+                      const foundLab = labs.find((l: any) => l.name === name);
+                      if (foundLab) setLabId(foundLab.id);
+                    }}
+                  >
+                    <option value="">Select Lab...</option>
+                    {labs.map((lab: any) => (
+                      <option key={lab.id} value={lab.name}>
+                        {lab.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold text-slate-700">
+                    Test Type
+                  </Label>
+                  <select
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={sampleType}
+                    onChange={(e) => setSampleType(e.target.value)}
+                  >
+                    <option value="">Select Test...</option>
+                    <option value="CO-TEST">CO-TEST</option>
+                    <option value="LBC">LBC</option>
+                    <option value="HPV">HPV</option>
+                  </select>
+                </div>
               </div>
 
               {/* Action Button */}
@@ -368,7 +442,12 @@ const AccessionDashboard = ({
                 <Button
                   onClick={handleCreateSample}
                   disabled={
-                    !manualPatientName || !barcode || !labId || !sampleType
+                    !manualPatientName ||
+                    !barcode ||
+                    !labId ||
+                    !sampleType ||
+                    !doctorName ||
+                    !hospitalName
                   }
                   className="w-full py-7 text-lg font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xl transition-transform active:scale-95 disabled:bg-slate-300"
                 >

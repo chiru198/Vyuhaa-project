@@ -12,6 +12,7 @@ import { authenticateToken } from "./authMiddleware.js";
 import { jsPDF } from "jspdf";
 import { companyLogo } from "./logo.js"; // This is your company logo in base64 format, imported from a separate file for cleaner code
 import multer from "multer";
+import { generateLBCReport } from "./pdfGenerator.js"; // <--- Import here
 
 // Create directory if it doesn't exist
 // const uploadDir = "uploads/pathology";
@@ -225,20 +226,27 @@ app.get("/api/dashboard/pathologist", async (req, res) => {
     `);
 
     // Recent Samples
+    // Inside app.get("/api/dashboard/pathologist", ...)
+    // Find the "Recent Samples" query and update it:
     const recentSamples = await pool.query(`
-      SELECT 
-        s.id,
-        s.sample_type,
-        s.status,
-        s.collected_at,
-        p.name AS patient_name,
-        l.name AS lab_name
-      FROM samples s
-      JOIN patients p ON s.patient_id = p.id
-      JOIN labs l ON s.lab_id = l.id
-      ORDER BY s.collected_at DESC
-      LIMIT 8
-    `);
+    SELECT 
+    s.id,
+    s.barcode,        -- 🟢 Ensure barcode is here
+    s.sample_type,
+    s.status,
+    s.collected_at,
+    s.doctor_name,    -- 🟢 Added
+    s.hospital_name,  -- 🟢 Added
+    p.name AS patient_name,
+    p.age,            -- 🟢 Added
+    p.gender,         -- 🟢 Added
+    l.name AS lab_name
+  FROM samples s
+  JOIN patients p ON s.patient_id = p.id
+  JOIN labs l ON s.lab_id = l.id
+  ORDER BY s.collected_at DESC
+  LIMIT 8
+`);
 
     res.json({
       pending: parseInt(pendingResult.rows[0].count),
@@ -262,12 +270,15 @@ app.get("/api/pathologist/review-queue", async (req, res) => {
         s.sample_type,
         s.status,
         s.collected_at,
+        s.doctor_name,    -- 🟢 Added
+        s.hospital_name,  -- 🟢 Added
         p.name AS patient_name,
+        p.age,            -- 🟢 Added
+        p.gender,         -- 🟢 Added
         l.name AS lab_name
       FROM samples s
       JOIN patients p ON s.patient_id = p.id
       JOIN labs l ON s.lab_id = l.id
-      -- Updated to show 'review', 'pending', and 'urgent' samples
       WHERE s.status IN ('review', 'pending', 'urgent') 
       ORDER BY s.collected_at DESC
     `);
@@ -337,254 +348,24 @@ app.get("/api/pathologist/recent-activity", async (req, res) => {
 import fs from "fs";
 import path from "path";
 
-app.post("/api/reports/finalize/:sampleId", async (req, res) => {
-  const { sampleId } = req.params;
-  // Capture all new fields from your frontend form
-  const {
-    diagnosis,
-    recommendations,
-    slide_image,
-    microscopy_description,
-    clinical_comment,
-  } = req.body;
-
-  try {
-    const dataRes = await pool.query(
-      `SELECT s.id, s.barcode, s.sample_type, p.age, p.gender, p.id as p_id, p.name as p_name, l.name as l_name 
-       FROM samples s 
-       JOIN patients p ON s.patient_id = p.id 
-       JOIN labs l ON s.lab_id = l.id
-       WHERE s.id = $1`,
-      [sampleId],
-    );
-
-    if (dataRes.rows.length === 0)
-      return res.status(404).send("Data not found");
-    const data = dataRes.rows[0];
-
-    const doc = new jsPDF();
-    const primaryColor = [37, 99, 235]; // Professional Blue
-
-    // --- 1. HEADER ---
-    doc.addImage(companyLogo, "PNG", 15, 10, 35, 18);
-    doc.setFontSize(20);
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text("VYUPATH DIAGNOSTICS", 105, 20, { align: "center" });
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Originating Lab: ${data.l_name}`, 105, 27, { align: "center" });
-    doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.line(15, 32, 195, 32);
-
-    // --- 2. PATIENT & SAMPLE GRID ---
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont("helvetica", "bold");
-    doc.text("PATIENT DETAILS", 20, 42);
-    doc.text("SAMPLE DETAILS", 120, 42);
-
-    doc.setFont("helvetica", "normal");
-    doc.text(`Name: ${data.p_name}`, 20, 50);
-    doc.text(
-      `Age / Gender: ${data.age || "N/A"}Y / ${data.gender || "N/A"}`,
-      20,
-      57,
-    );
-    doc.text(`Barcode: ${data.barcode}`, 120, 50);
-    doc.text(`Type: ${data.sample_type}`, 120, 57);
-
-    doc.setDrawColor(200, 200, 200);
-    doc.line(15, 65, 195, 65);
-
-    // --- 3. DYNAMIC CONTENT TRACKING ---
-    let currentY = 75;
-
-    // A. Clinical Interpretation (Main Diagnosis)
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text("CLINICAL INTERPRETATION", 20, currentY);
-
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(0, 0, 0);
-    const diagLines = doc.splitTextToSize(
-      diagnosis || "Negative for malignancy (NILM).",
-      90,
-    );
-    doc.text(diagLines, 20, currentY + 8);
-
-    // Slide Image - Positioned to the right of the diagnosis
-    if (slide_image) {
-      try {
-        doc.addImage(slide_image, "JPEG", 115, currentY, 80, 60);
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text("Fig 1: Microscopic Evidence", 115, currentY + 63);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    // Set Y below the diagnosis text OR image, whichever is lower
-    currentY = Math.max(currentY + diagLines.length * 7 + 15, currentY + 70);
-
-    // B. Microscopy Description
-    if (microscopy_description) {
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-      doc.text("MICROSCOPY DESCRIPTION", 20, currentY);
-
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(0, 0, 0);
-      const microLines = doc.splitTextToSize(microscopy_description, 170);
-      doc.text(microLines, 20, currentY + 7);
-      currentY += microLines.length * 6 + 15;
-    }
-
-    // C. Recommendations
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text("RECOMMENDATIONS", 20, currentY);
-
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    const recLines = doc.splitTextToSize(
-      recommendations || "Routine follow-up.",
-      170,
-    );
-    doc.text(recLines, 20, currentY + 7);
-    currentY += recLines.length * 6 + 15;
-
-    // D. Clinical Comment (Footer Note)
-    if (clinical_comment) {
-      doc.setDrawColor(230, 230, 230);
-      doc.line(20, currentY, 190, currentY);
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "italic");
-      doc.setTextColor(100, 100, 100);
-      const commLines = doc.splitTextToSize(`Note: ${clinical_comment}`, 170);
-      doc.text(commLines, 20, currentY + 7);
-    }
-
-    // --- 4. FOOTER ---
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(
-      "Electronically generated report. No physical signature required.",
-      105,
-      285,
-      { align: "center" },
-    );
-
-    // --- 5. SAVE & DB LOGIC ---
-    const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
-    const patientFolderName = `${data.p_name.replace(/\s+/g, "_")}_${data.p_id}`;
-    const patientFolderPath = path.join(
-      process.cwd(),
-      "stored_reports",
-      patientFolderName,
-    );
-    if (!fs.existsSync(patientFolderPath))
-      fs.mkdirSync(patientFolderPath, { recursive: true });
-
-    const fileName = `${data.barcode}_Report.pdf`;
-    const filePath = path.join(patientFolderPath, fileName);
-    fs.writeFileSync(filePath, pdfBuffer);
-
-    await pool.query("BEGIN");
-    await pool.query(
-      `INSERT INTO finalized_reports (sample_id, patient_id, patient_name, file_path) VALUES ($1, $2, $3, $4)`,
-      [data.id, data.p_id, data.p_name, filePath],
-    );
-    await pool.query("UPDATE samples SET status = 'completed' WHERE id = $1", [
-      sampleId,
-    ]);
-    await pool.query("COMMIT");
-
-    res.json({ message: "PDF successfully generated", path: filePath });
-  } catch (err) {
-    if (pool) await pool.query("ROLLBACK");
-    res.status(500).json({ error: err.message });
-  }
-});
 //This post api endpoint is used for generating a PDF for preview purposes only. It accepts the same data as the finalize route but does not save anything to the database or filesystem. Instead, it generates the PDF in memory and sends it back to the frontend, where you can open it in a new tab for previewing before finalizing. This allows you to see exactly how the report will look with the real data before you commit to saving it.
-app.post("/api/reports/preview", async (req, res) => {
-  const {
-    diagnosis,
-    recommendations,
-    microscopy_description,
-    clinical_comment,
-    patient_data,
-  } = req.body;
+app.post("/api/report/preview", (req, res) => {
+  res.setHeader("Content-Type", "application/pdf");
+  // console.log("Received data for PDF preview:", req.body);
+  generateLBCReport(req.body, res);
+});
+app.post("/api/report/finalize", (req, res) => {
+  const finalDir = path.join(__dirname, "final_reports");
+  if (!fs.existsSync(finalDir)) fs.mkdirSync(finalDir);
 
-  try {
-    const doc = new jsPDF();
-    const primaryColor = [37, 99, 235];
+  const filePath = path.join(finalDir, `${req.body.mr_number}.pdf`);
+  const stream = fs.createWriteStream(filePath);
 
-    // --- 1. HEADER (Copy this from your finalize route) ---
-    doc.addImage(companyLogo, "PNG", 15, 10, 35, 18);
-    doc.setFontSize(20);
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text("VYUPATH DIAGNOSTICS", 105, 20, { align: "center" });
-    doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.line(15, 32, 195, 32);
+  generateLBCReport(req.body, stream);
 
-    // --- 2. PATIENT DETAILS (Using the data you sent from frontend) ---
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Name: ${patient_data.name}`, 20, 50);
-    doc.text(
-      `Age / Gender: ${patient_data.age}Y / ${patient_data.gender}`,
-      20,
-      57,
-    );
-    doc.text(`Barcode: ${patient_data.barcode}`, 120, 50);
-
-    // --- 3. DYNAMIC CONTENT (This is what was missing!) ---
-    let currentY = 75;
-
-    // Diagnosis Section
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("CLINICAL INTERPRETATION", 20, currentY);
-    doc.setFont("helvetica", "normal");
-    const diagLines = doc.splitTextToSize(diagnosis, 170); // Use 170 for full width in preview
-    doc.text(diagLines, 20, currentY + 8);
-    currentY += diagLines.length * 7 + 15;
-
-    // Microscopy Section
-    if (microscopy_description) {
-      doc.setFont("helvetica", "bold");
-      doc.text("MICROSCOPY DESCRIPTION", 20, currentY);
-      doc.setFont("helvetica", "normal");
-      const microLines = doc.splitTextToSize(microscopy_description, 170);
-      doc.text(microLines, 20, currentY + 7);
-      currentY += microLines.length * 6 + 15;
-    }
-
-    // Recommendations
-    doc.setFont("helvetica", "bold");
-    doc.text("RECOMMENDATIONS", 20, currentY);
-    doc.setFont("helvetica", "normal");
-    const recLines = doc.splitTextToSize(recommendations, 170);
-    doc.text(recLines, 20, currentY + 7);
-
-    // --- 4. WATERMARK (Optional: To show it's just a preview) ---
-    doc.setFontSize(40);
-    doc.setTextColor(200, 200, 200);
-    doc.text("DRAFT PREVIEW", 105, 150, { align: "center", angle: 45 });
-
-    // --- 5. SEND TO BROWSER ---
-    const pdfOutput = doc.output("arraybuffer");
-    res.setHeader("Content-Type", "application/pdf");
-    res.send(Buffer.from(pdfOutput));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  stream.on("finish", () => {
+    res.json({ success: true, message: "Report saved permanently." });
+  });
 });
 // Pathology ends here
 
@@ -599,6 +380,10 @@ app.post("/api/accession/add-sample", async (req, res) => {
     lab_id,
     sample_type,
     accession_id,
+    // ✅ NEW FIELDS FROM FRONTEND
+    doctor_name,
+    hospital_name,
+    clinical_history,
   } = req.body;
 
   const client = await pool.connect();
@@ -607,7 +392,6 @@ app.post("/api/accession/add-sample", async (req, res) => {
     await client.query("BEGIN");
 
     // STEP 1: Insert into patients
-    // We map 'accession_id' to the 'customer_id' column for now
     const patientQuery = `
       INSERT INTO patients (name, age, gender, customer_id) 
       VALUES ($1, $2, $3, $4) 
@@ -617,22 +401,37 @@ app.post("/api/accession/add-sample", async (req, res) => {
       patient_name,
       age || null,
       gender || null,
-      accession_id, // Stored in customer_id column
+      accession_id,
     ]);
     const newPatientId = patientRes.rows[0].id;
 
-    // STEP 2: Insert into samples
+    // STEP 2: Insert into samples (Updated with 3 new columns)
     const sampleQuery = `
-      INSERT INTO samples (barcode, patient_id, customer_id, lab_id, sample_type, status, collected_at)
-      VALUES ($1, $2, $3, $4, $5, 'received', NOW())
+      INSERT INTO samples (
+        barcode, 
+        patient_id, 
+        customer_id, 
+        lab_id, 
+        sample_type, 
+        status, 
+        collected_at,
+        doctor_name,
+        hospital_name,
+        clinical_history
+      )
+      VALUES ($1, $2, $3, $4, $5, 'received', NOW(), $6, $7, $8)
       RETURNING *;
     `;
+
     const sampleRes = await client.query(sampleQuery, [
       barcode,
       newPatientId,
-      accession_id, // Stored in customer_id column
+      accession_id,
       lab_id,
       sample_type,
+      doctor_name || null, // $6
+      hospital_name || null, // $7
+      clinical_history || null, // $8
     ]);
 
     await client.query("COMMIT");
@@ -683,7 +482,6 @@ app.get("/users", async (req, res) => {
 //ACCESSION ENDS HERE
 //TECHNICIAN DASHBOARD STARTS HERE
 //FOR STORING IMAGE URL IN DATABASE AND MOVING SAMPLE TO PATHOLOGIST REVIEW
-
 
 import { fileURLToPath } from "url";
 
@@ -883,16 +681,19 @@ app.post("/api/patients", async (req, res) => {
 //Fetching all samples for the Report pages also, because we need the patient and lab info to show in the report details page. This is a more comprehensive query that joins with patients and labs to get all the info you need in one go. You can filter or sort on the frontend as needed for different views (like just pending samples for the queue, or all samples for the report list).
 app.get("/api/samples", async (req, res) => {
   try {
-    // 1. Capture the ID from the query parameters
     const { customerId } = req.query;
 
-    // 2. Base Query
+    // Added s.doctor_name, s.hospital_name, and s.collected_at to the SELECT
     let queryText = `
       SELECT 
         s.id, 
         s.barcode,
         s.sample_type,
         s.status,
+        s.doctor_name,    -- 🟢 Added
+        s.hospital_name,  -- 🟢 Added
+        s.collected_at,   -- 🟢 Added (Required for the date logic)
+        s.clinical_history, -- 🟢 Added (Required for the report details page)
         p.name AS patient_name, 
         p.age,
         p.gender,
@@ -904,7 +705,6 @@ app.get("/api/samples", async (req, res) => {
 
     const queryParams = [];
 
-    // 3. Logic: If a customerId is provided, filter the results
     if (customerId) {
       queryText += ` WHERE s.patient_id = $1`;
       queryParams.push(customerId);

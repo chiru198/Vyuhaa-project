@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -23,11 +23,12 @@ import {
 const LBCReporting = ({ selectedSample, onBack }) => {
   // --- 1. STATE MANAGEMENT ---
   // --- 1. GENERAL PORTAL STATE ---
-  const [isAdequate, setIsAdequate] = useState(true);
-  const [showAbnormality, setShowAbnormality] = useState(false);
-  const [abnormalityCategory, setAbnormalityCategory] = useState("Squamous");
-  const [showInflammatory, setShowInflammatory] = useState(false);
-  const [showFollowUp, setShowFollowUp] = useState(false);
+  // --- 1. GENERAL PORTAL STATE ---
+  const [isAdequate, setIsAdequate] = useState(true); // Normal
+  const [showAbnormality, setShowAbnormality] = useState(true); // ✅ Set to TRUE to show the section
+  const [abnormalityCategory, setAbnormalityCategory] = useState("Squamous"); // Default tab
+  const [showInflammatory, setShowInflammatory] = useState(false); // Keep false (only turn on if needed)
+  const [showFollowUp, setShowFollowUp] = useState(false); // Keep false (only turn on if needed)
 
   // --- 2. MULTI-SELECT ARRAYS (The Critical Change) ---
   // We use arrays [] so you can select multiple buttons at once
@@ -41,11 +42,31 @@ const LBCReporting = ({ selectedSample, onBack }) => {
   const [selectedOrganisms, setSelectedOrganisms] = useState<string[]>([]);
   const [selectedFollowUps, setSelectedFollowUps] = useState<string[]>([]);
 
+  // Added missing state variables for report generation
+  const [selectedSquamous, setSelectedSquamous] = useState<string[]>([]);
+  const [selectedGlandular, setSelectedGlandular] = useState<string[]>([]);
+  const [inflammationLevel, setInflammationLevel] = useState<string>("");
+
   // --- 3. TEXT FIELDS ---
   const [microscopyDescription, setMicroscopyDescription] = useState(
     "Cytopathology report shows features of Negative for Intraepithelial Lesion or Malignancy (NILM). Reactive cellular changes are seen.",
   );
+  const [clinicalHistory, setClinicalHistory] = useState("");
   const [clinicalComment, setClinicalComment] = useState("");
+
+  useEffect(() => {
+    // If selectedSample exists and has history from Accession, fill the box!
+    if (selectedSample?.clinical_history) {
+      setClinicalHistory(selectedSample.clinical_history);
+      console.log(
+        "Clinical history loaded from sample:",
+        selectedSample.clinical_history,
+      );
+    } else {
+      // Optional: Reset if it's a new sample with no history
+      setClinicalHistory("");
+    }
+  }, [selectedSample]);
   const toggleMultiSelect = (
     currentItems: string[],
     setFunction: (val: string[]) => void,
@@ -96,9 +117,19 @@ const LBCReporting = ({ selectedSample, onBack }) => {
       },
       {
         label: "INTERPRETATION / RESULT",
-        value: showAbnormality
-          ? `${abnormalityCategory}: ${formatArray(abnormalityCategory === "Squamous" ? selectedResults : glandularResults)}.`
-          : "Negative for Intraepithelial Lesion or Malignancy (NILM).",
+        value:
+          // 1. Check if NILM is explicitly selected in the results
+          selectedResults.includes("NILM")
+            ? "NEGATIVE FOR INTRAEPITHELIAL LESION OR MALIGNANCY (NILM)."
+            : // 2. If abnormality switch is ON, show the specific findings
+              showAbnormality
+              ? `${abnormalityCategory}: ${formatArray(
+                  abnormalityCategory === "Squamous"
+                    ? selectedResults
+                    : glandularResults,
+                )}.`
+              : // 3. Fallback: If switch is OFF, it's always NILM
+                "NEGATIVE FOR INTRAEPITHELIAL LESION OR MALIGNANCY (NILM).",
       },
       {
         label: "NON-NEOPLASTIC FINDINGS",
@@ -115,37 +146,87 @@ const LBCReporting = ({ selectedSample, onBack }) => {
       },
     ];
   };
-  // --- 3. API ACTIONS (SignOut/Preview kept from your original) ---
-  const handleSignOut = async () => {
-    const payload = {
-      diagnosis: getReportSections(),
-      recommendations:
+  // FOR PREPARING THE DATA TO BE SENT TO BACKEND FOR PDF GENERATION AND FINALIZATION
+  const prepareReportData = () => {
+    return {
+      // 1. Header Info (From the database/selected sample)
+      mr_number: selectedSample.barcode,
+      patient_name: selectedSample.patient_name,
+      age: selectedSample.age,
+      gender: selectedSample.gender,
+      doctor_name: selectedSample.doctor_name,
+      hospital_name: selectedSample.hospital_name,
+      specimen_type: selectedSample.sample_type || "LBC",
+      collection_date: selectedSample.collected_at
+        ? new Date(selectedSample.collected_at).toLocaleDateString("en-GB")
+        : "N/A",
+
+      // 2. Clinical History (From your live textarea state)
+      clinical_history: clinicalHistory || "None provided",
+
+      // 3. Microscopic Description (The Vertical List)
+      // We create an array here so the PDF generator can loop through it for bullets
+      microscopy_list: [
+        `Squamous Epithelial cells: ${selectedSquamous.length > 0 ? selectedSquamous.join(", ") : "Superficial and Intermediate cells present"}`,
+        `Glandular cells: ${selectedGlandular.length > 0 ? selectedGlandular.join(", ") : "Endocervical cells present"}`,
+        `Inflammation: ${inflammationLevel || "Mild"}`,
+        `Organisms: ${selectedOrganisms.length > 0 ? selectedOrganisms.join(", ") : "Not detected"}`,
+        `Epithelial Cell Abnormalities: ${selectedResults.includes("NILM") ? "Absent" : "Present"}`,
+      ],
+
+      // 4. Adequacy & Quality
+      specimen_adequacy: isAdequate
+        ? "Satisfactory for evaluation."
+        : "Unsatisfactory for evaluation",
+
+      quality_indicators: `TZ Component: ${tZone.length > 0 ? tZone.join(", ") : "Present"}. Obscuring factors: ${obscuringFactors?.join(", ") || "None"}.`,
+
+      // 5. Interpretation / Result
+      result: selectedResults.includes("NILM")
+        ? "NEGATIVE FOR INTRAEPITHELIAL LESION OR MALIGNANCY (NILM)"
+        : showAbnormality
+          ? `${abnormalityCategory}: ${[...selectedResults, ...glandularResults].join(", ")}`
+          : "NEGATIVE FOR INTRAEPITHELIAL LESION OR MALIGNANCY (NILM)",
+
+      // 6. Non-Neoplastic Findings
+      non_neoplastic_findings:
+        [...(selectedNonNeoplastic || []), ...(selectedOrganisms || [])]
+          .length > 0
+          ? [...selectedNonNeoplastic, ...selectedOrganisms].join(", ")
+          : "None identified",
+
+      // 7. Follow-up Recommendations (Sent as an array for the bulleted list)
+      recommendations_list:
         selectedFollowUps.length > 0
-          ? selectedFollowUps.join(", ")
-          : "Routine screening.",
-      microscopy_description: microscopyDescription,
-      clinical_comment: clinicalComment,
+          ? selectedFollowUps
+          : ["Routine screening"],
     };
-    try {
-      const res = await fetch(
-        `http://localhost:5000/api/reports/finalize/${selectedSample.id}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-      );
-      if (res.ok) {
-        alert("Report Finalized Successfully!");
-        onBack();
-      }
-    } catch (err) {
-      console.error(err);
+  };
+  // THIS FUNCTION IS FOR PREVIEW THE REPORT IN NEW TAB
+  const handlePreview = async () => {
+    const reportData = prepareReportData(); // Translates your UI into an object
+
+    const response = await fetch("http://localhost:5000/api/report/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(reportData), // SENDING THE PACKAGE
+    });
+
+    if (response.ok) {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url); // Opens the PDF in a new tab
     }
   };
-
-  const handlePreviewPDF = async () => {
-    /* Kept your existing logic */
+  //THIS FUNCTION IS FOR FINALIZING THE REPORT AND SAVING TO SERVER
+  const handleFinalizeReport = async () => {
+    const response = await fetch("http://localhost:5000/api/report/finalize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(prepareReportData()),
+    });
+    const result = await response.json();
+    if (result.success) alert("Report finalized and saved to server.");
   };
 
   // --- 4. RENDER HELPER ---
@@ -309,42 +390,49 @@ const LBCReporting = ({ selectedSample, onBack }) => {
                   </div>
                 )}
               </div>
-              {/* 2. ABNORMALITY SECTION (Squamous / Glandular) */}
+              {/* 2. EPITHELIAL CELL ABNORMALITIES SECTION */}
               <div className="space-y-4 pt-4 border-t">
+                {/* MASTER HEADER: Matches Specimen Adequacy Style */}
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-black text-slate-900 flex items-center gap-2 uppercase tracking-wide">
-                    <AlertTriangle className="h-4 w-4 text-red-500" />{" "}
-                    Epithelial / Glandular Abnormality
+                    <AlertTriangle className="h-4 w-4 text-blue-600" />
+                    Epithelial Cell Abnormalities
                   </Label>
                   <Switch
                     checked={showAbnormality}
-                    onCheckedChange={(v) => {
-                      setShowAbnormality(v);
-                      // ✅ FIX: Clear the ARRAYS when the switch is turned off
-                      if (!v) {
-                        setSelectedResults([]); // Clears Squamous selections
-                        setGlandularResults([]); // Clears Glandular selections
+                    onCheckedChange={(val) => {
+                      setShowAbnormality(val);
+                      // Clear sub-selections when turned off for a clean report
+                      if (!val) {
+                        setSelectedResults([]);
+                        setGlandularResults([]);
                       }
                     }}
                   />
                 </div>
 
+                {/* CONDITIONAL CONTENT: Only shows if showAbnormality is true */}
                 {showAbnormality && (
                   <div className="space-y-6 animate-in slide-in-from-top-2 duration-300 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+                    {/* 1. TABS / CATEGORY BAR */}
                     <div className="flex gap-2 p-1 bg-slate-200/50 rounded-lg w-fit">
-                      {["Squamous", "Glandular"].map((cat) => (
+                      {["NILM", "Squamous", "Glandular"].map((cat) => (
                         <button
                           key={cat}
                           onClick={() => {
                             setAbnormalityCategory(cat);
-                            // ✅ CLEAR ARRAYS: Wipe out both Squamous and Glandular selections
-                            // to ensure the report starts fresh for the new category.
-                            setSelectedResults([]);
+                            // Logic to clear arrays when switching tabs to prevent data pollution
+                            setSelectedResults(cat === "NILM" ? ["NILM"] : []);
                             setGlandularResults([]);
                           }}
                           className={`px-6 py-1.5 rounded-md text-[11px] font-black transition-all ${
-                            abnormalityCategory === cat
-                              ? "bg-white text-blue-600 shadow-sm"
+                            (cat === "NILM" &&
+                              selectedResults.includes("NILM")) ||
+                            (abnormalityCategory === cat &&
+                              !selectedResults.includes("NILM"))
+                              ? cat === "NILM"
+                                ? "bg-emerald-500 text-white shadow-sm"
+                                : "bg-white text-blue-600 shadow-sm"
                               : "text-slate-500 hover:text-slate-700"
                           }`}
                         >
@@ -353,21 +441,39 @@ const LBCReporting = ({ selectedSample, onBack }) => {
                       ))}
                     </div>
 
-                    {abnormalityCategory === "Squamous" ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in">
-                        <div className="space-y-3">
-                          <Label className="text-[10px] font-black text-slate-400 uppercase">
-                            Atypical - NOS
-                          </Label>
-                          <div className="flex flex-wrap gap-2">
-                            {["ASC-US", "ASC-H", "LSIL", "HSIL", "LSIL-H"].map(
-                              (btn) => (
+                    {/* 2. DYNAMIC CONTENT AREA */}
+                    <div className="animate-in fade-in duration-300">
+                      {selectedResults.includes("NILM") ? (
+                        /* NILM VIEW */
+                        <div className="flex flex-col items-center justify-center py-10 bg-emerald-50/50 rounded-xl border border-dashed border-emerald-200">
+                          <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-2" />
+                          <p className="text-[11px] font-black text-emerald-700 uppercase tracking-widest">
+                            Negative for Malignancy (NILM)
+                          </p>
+                          <p className="text-[10px] text-emerald-600 mt-1 italic">
+                            No epithelial or glandular cell abnormalities
+                            detected.
+                          </p>
+                        </div>
+                      ) : abnormalityCategory === "Squamous" ? (
+                        /* SQUAMOUS VIEW */
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-3">
+                            <Label className="text-[10px] font-black text-slate-400 uppercase">
+                              Atypical - NOS
+                            </Label>
+                            <div className="flex flex-wrap gap-2">
+                              {[
+                                "ASC-US",
+                                "ASC-H",
+                                "LSIL",
+                                "HSIL",
+                                "LSIL-H",
+                              ].map((btn) => (
                                 <ActionButton
                                   key={btn}
                                   label={btn}
-                                  // ✅ Check if this button is inside the array
                                   active={selectedResults.includes(btn)}
-                                  // ✅ Toggle the selection in the array
                                   onClick={() =>
                                     toggleMultiSelect(
                                       selectedResults,
@@ -376,51 +482,102 @@ const LBCReporting = ({ selectedSample, onBack }) => {
                                     )
                                   }
                                 />
-                              ),
-                            )}
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                        <div className="space-y-3">
-                          <Label className="text-[10px] font-black text-slate-400 uppercase">
-                            Neoplastic
-                          </Label>
-                          <div className="flex flex-wrap gap-2">
-                            {["SCC"].map((btn) => (
-                              <ActionButton
-                                key={btn}
-                                label={btn}
-                                active={selectedResults.includes(btn)}
-                                onClick={() =>
-                                  toggleMultiSelect(
-                                    selectedResults,
-                                    setSelectedResults,
-                                    btn,
-                                  )
-                                }
-                                color="red"
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-6 animate-in fade-in">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             <Label className="text-[10px] font-black text-slate-400 uppercase">
-                              Atypical - NOS
+                              Neoplastic
                             </Label>
                             <div className="flex flex-wrap gap-2">
+                              {["SCC"].map((btn) => (
+                                <ActionButton
+                                  key={btn}
+                                  label={btn}
+                                  active={selectedResults.includes(btn)}
+                                  onClick={() =>
+                                    toggleMultiSelect(
+                                      selectedResults,
+                                      setSelectedResults,
+                                      btn,
+                                    )
+                                  }
+                                  color="red"
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        /* GLANDULAR VIEW */
+                        <div className="space-y-6">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-black text-slate-400 uppercase">
+                                Atypical - NOS
+                              </Label>
+                              <div className="flex flex-wrap gap-2">
+                                {[
+                                  "Atyp. Endocervical NOS",
+                                  "Atyp. Glandular NOS",
+                                ].map((btn) => (
+                                  <ActionButton
+                                    key={btn}
+                                    label={btn}
+                                    active={glandularResults.includes(btn)}
+                                    onClick={() =>
+                                      toggleMultiSelect(
+                                        glandularResults,
+                                        setGlandularResults,
+                                        btn,
+                                      )
+                                    }
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-black text-slate-400 uppercase">
+                                Favor Neoplastic
+                              </Label>
+                              <div className="flex flex-wrap gap-2">
+                                {[
+                                  "Atyp. Endocervical - Favor Neoplastic",
+                                  "Atyp. Glandular - Favor Neoplastic",
+                                ].map((btn) => (
+                                  <ActionButton
+                                    key={btn}
+                                    label={btn}
+                                    active={glandularResults.includes(btn)}
+                                    onClick={() =>
+                                      toggleMultiSelect(
+                                        glandularResults,
+                                        setGlandularResults,
+                                        btn,
+                                      )
+                                    }
+                                    color="orange"
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="pt-4 border-t border-slate-200">
+                            <Label className="text-[10px] font-black text-red-500 uppercase tracking-widest">
+                              Adenocarcinoma Spectrum
+                            </Label>
+                            <div className="flex flex-wrap gap-2 mt-2">
                               {[
-                                "Atyp. Endocervical NOS",
-                                "Atyp. Glandular NOS",
+                                "Endocervical AIS",
+                                "Endocervical Adenocarcinoma",
+                                "Endometrial Adenocarcinoma",
+                                "Extrauterine Adenocarcinoma",
+                                "Adenocarcinoma - NOS",
                               ].map((btn) => (
                                 <ActionButton
                                   key={btn}
                                   label={btn}
-                                  // ✅ Uses the glandularResults array for multi-selection
                                   active={glandularResults.includes(btn)}
-                                  // ✅ Uses the toggle helper to add/remove findings
                                   onClick={() =>
                                     toggleMultiSelect(
                                       glandularResults,
@@ -428,74 +585,17 @@ const LBCReporting = ({ selectedSample, onBack }) => {
                                       btn,
                                     )
                                   }
-                                />
-                              ))}
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-[10px] font-black text-slate-400 uppercase">
-                              Favor Neoplastic
-                            </Label>
-                            <div className="flex flex-wrap gap-2">
-                              {[
-                                "Atyp. Endocervical - Favor Neoplastic",
-                                "Atyp. Glandular - Favor Neoplastic",
-                              ].map((btn) => (
-                                <ActionButton
-                                  key={btn}
-                                  label={btn}
-                                  // ✅ Uses glandularResults array to check if active
-                                  active={glandularResults.includes(btn)}
-                                  // ✅ Uses the multi-select toggle helper
-                                  onClick={() =>
-                                    toggleMultiSelect(
-                                      glandularResults,
-                                      setGlandularResults,
-                                      btn,
-                                    )
-                                  }
-                                  color="orange"
+                                  color="red"
                                 />
                               ))}
                             </div>
                           </div>
                         </div>
-                        <div className="pt-4 border-t border-slate-200">
-                          <Label className="text-[10px] font-black text-red-500 uppercase tracking-widest">
-                            Adenocarcinoma Spectrum
-                          </Label>
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {[
-                              "Endocervical AIS",
-                              "Endocervical Adenocarcinoma",
-                              "Endometrial Adenocarcinoma",
-                              "Extrauterine Adenocarcinoma",
-                              "Adenocarcinoma - NOS",
-                            ].map((btn) => (
-                              <ActionButton
-                                key={btn}
-                                label={btn}
-                                // ✅ Check if the finding is in the glandular results array
-                                active={glandularResults.includes(btn)}
-                                // ✅ Toggle the finding in/out of the array
-                                onClick={() =>
-                                  toggleMultiSelect(
-                                    glandularResults,
-                                    setGlandularResults,
-                                    btn,
-                                  )
-                                }
-                                color="red"
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
-
               {/* 3. INFLAMMATORY / INFECTIVE CHANGES (The Fixed Section) */}
               <div className="space-y-4 pt-4 border-t">
                 <div className="flex items-center justify-between">
@@ -626,6 +726,19 @@ const LBCReporting = ({ selectedSample, onBack }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="border-none shadow-sm ring-1 ring-slate-200">
               <CardHeader className="py-3 px-4 border-b flex items-center gap-2 text-xs font-black uppercase text-slate-500">
+                <Microscope className="h-4 w-4" /> Clinical History
+              </CardHeader>
+              <CardContent className="p-4">
+                <textarea
+                  className="w-full h-32 p-3 text-xs border rounded-lg bg-slate-50/50 focus:ring-2 focus:ring-blue-500 outline-none resize-none font-medium leading-relaxed"
+                  placeholder="Enter clinical history..."
+                  value={clinicalHistory}
+                  onChange={(e) => setClinicalHistory(e.target.value)}
+                />
+              </CardContent>
+            </Card>
+            <Card className="border-none shadow-sm ring-1 ring-slate-200">
+              <CardHeader className="py-3 px-4 border-b flex items-center gap-2 text-xs font-black uppercase text-slate-500">
                 <Microscope className="h-4 w-4" /> Microscopy Findings
               </CardHeader>
               <CardContent className="p-4">
@@ -692,10 +805,7 @@ const LBCReporting = ({ selectedSample, onBack }) => {
                 <Button
                   variant="outline"
                   className="w-full py-6 border-blue-600 text-blue-600 font-bold hover:bg-blue-50 transition-colors uppercase tracking-widest text-[11px]"
-                  onClick={() => {
-                    // This will trigger the PDF generation logic we discussed
-                    console.log("Opening PDF Preview...");
-                  }}
+                  onClick={handlePreview}
                 >
                   <Eye className="mr-2 h-4 w-4" />
                   Report Preview
@@ -703,10 +813,7 @@ const LBCReporting = ({ selectedSample, onBack }) => {
 
                 <Button
                   className="w-full py-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg transition-all uppercase tracking-widest text-[11px]"
-                  onClick={() => {
-                    // This will finalize and save the report data
-                    console.log("Finalizing Report...");
-                  }}
+                  onClick={handleFinalizeReport} // <--- Added here
                 >
                   <CheckCircle className="mr-2 h-4 w-4" />
                   Finalize Report
