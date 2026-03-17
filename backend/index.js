@@ -64,7 +64,7 @@ app.get("/db-test", async (req, res) => {
 
 //SIGNUP ENDPOINT FOR THE CUSTOMER PORTAL. THIS ALLOWS NEW CUSTOMERS TO SIGN UP AND AUTOMATICALLY GETS THE 'CUSTOMER' ROLE ID FROM THE ROLES TABLE TO ASSIGN TO THE NEW USER. IT ALSO HASHES THE PASSWORD USING BCRYPT BEFORE STORING IT IN THE DATABASE FOR BETTER SECURITY.
 app.post("/api/auth/signup", async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, role } = req.body; // Added role here
 
   try {
     const userExist = await pool.query(
@@ -80,9 +80,18 @@ app.post("/api/auth/signup", async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Look up the role dynamically based on the string passed from frontend
+    const targetRole = role ? role.toLowerCase() : "customer";
+
     const roleResult = await pool.query(
-      "SELECT id FROM roles WHERE LOWER(name) = 'customer'",
+      "SELECT id FROM roles WHERE LOWER(name) = $1",
+      [targetRole],
     );
+
+    if (roleResult.rows.length === 0) {
+      return res.status(400).json({ error: "Invalid role specified." });
+    }
+
     const roleId = roleResult.rows[0].id;
 
     const newUser = await pool.query(
@@ -93,7 +102,7 @@ app.post("/api/auth/signup", async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: "User registered successfully!",
+      message: `User registered successfully as ${targetRole}!`,
       user: newUser.rows[0],
     });
   } catch (err) {

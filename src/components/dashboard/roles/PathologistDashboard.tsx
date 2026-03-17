@@ -69,7 +69,10 @@ const PathologistDashboard = ({
   const [submitting, setSubmitting] = useState<{ [key: string]: boolean }>({});
 
   // Filter logic to catch all variations of "pending" status
+  console.log("All samples in dashboard:", samples);
   const pendingReviews = useMemo(() => {
+    console.log("samples in useMemo:", samples);
+    console.log("reviewQueue in useMemo:", reviewQueue);
     return samples.filter((sample) => {
       const status = sample.status?.toLowerCase();
       const matchesStatus =
@@ -130,6 +133,21 @@ const PathologistDashboard = ({
         <div className="flex flex-col items-center justify-center p-20 text-blue-600">
           <Loader2 className="h-10 w-10 animate-spin" />
           <p className="mt-4 font-medium">Updating Dashboard...</p>
+        </div>
+      );
+    }
+    // 2. ADD THIS: Show error if the fetch failed
+    if (error) {
+      return (
+        <div className="flex flex-col items-center justify-center p-20 text-red-500">
+          <p className="font-bold">Error loading samples:</p>
+          <p className="text-sm">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-red-100 rounded-md"
+          >
+            Retry Connection
+          </button>
         </div>
       );
     }
