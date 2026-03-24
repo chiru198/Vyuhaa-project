@@ -1,14 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   History,
   CheckSquare,
-  FileText,
   CheckCircle2,
   ArrowLeft,
   Eye,
@@ -22,123 +20,90 @@ import {
 
 const LBCReporting = ({ selectedSample, onBack }) => {
   // --- 1. STATE MANAGEMENT ---
-  // --- 1. GENERAL PORTAL STATE ---
-  // --- 1. GENERAL PORTAL STATE ---
-  const [isAdequate, setIsAdequate] = useState(true); // Normal
-  const [showAbnormality, setShowAbnormality] = useState(true); // ✅ Set to TRUE to show the section
-  const [abnormalityCategory, setAbnormalityCategory] = useState("Squamous"); // Default tab
-  const [showInflammatory, setShowInflammatory] = useState(false); // Keep false (only turn on if needed)
-  const [showFollowUp, setShowFollowUp] = useState(false); // Keep false (only turn on if needed)
-
-  // --- 2. MULTI-SELECT ARRAYS (The Critical Change) ---
-  // We use arrays [] so you can select multiple buttons at once
-  const [tZone, setTZone] = useState<string[]>([]);
-  const [obscuringFactors, setObscuringFactors] = useState<string[]>([]);
-  const [selectedResults, setSelectedResults] = useState<string[]>([]); // For Squamous
-  const [glandularResults, setGlandularResults] = useState<string[]>([]); // For Glandular
-  const [selectedNonNeoplastic, setSelectedNonNeoplastic] = useState<string[]>(
-    [],
+  const [specimenAdequacyText, setSpecimenAdequacyText] = useState(
+    "Satisfactory for evaluation.",
   );
-  const [selectedOrganisms, setSelectedOrganisms] = useState<string[]>([]);
-  const [selectedFollowUps, setSelectedFollowUps] = useState<string[]>([]);
 
-  // Added missing state variables for report generation
-  const [selectedSquamous, setSelectedSquamous] = useState<string[]>([]);
-  const [selectedGlandular, setSelectedGlandular] = useState<string[]>([]);
-  const [inflammationLevel, setInflammationLevel] = useState<string>("");
+  // Microscopy Findings (5 Points)
+  const [selectedSquamous, setSelectedSquamous] = useState([]);
+  const [otherSquamous, setOtherSquamous] = useState("");
+  const [endocervicalStatus, setEndocervicalStatus] = useState("");
+  const [inflammationLevel, setInflammationLevel] = useState("None");
+  const [epithelialNotes, setEpithelialNotes] = useState("");
+  const [selectedOrganisms, setSelectedOrganisms] = useState([]);
 
-  // --- 3. TEXT FIELDS ---
-  const [microscopyDescription, setMicroscopyDescription] = useState(
-    "Cytopathology report shows features of Negative for Intraepithelial Lesion or Malignancy (NILM). Reactive cellular changes are seen.",
-  );
+  // Clinical Impression
+  const [showImpression, setShowImpression] = useState(true);
+  const [impressionCategory, setImpressionCategory] = useState("Squamous");
+  const [selectedResults, setSelectedResults] = useState([]);
+  const [glandularResults, setGlandularResults] = useState([]);
+
+  const [showFollowUp, setShowFollowUp] = useState(false);
+  // Inside State Management section
+  const [otherMicroscopy, setOtherMicroscopy] = useState("");
+  const [selectedFollowUps, setSelectedFollowUps] = useState([]);
+
   const [clinicalHistory, setClinicalHistory] = useState("");
-  const [clinicalComment, setClinicalComment] = useState("");
+  const [microscopyDescription, setMicroscopyDescription] = useState("");
+
+  const EC2_IP = "http://localhost:5000"; // Updated to your EC2 IP
 
   useEffect(() => {
-    // If selectedSample exists and has history from Accession, fill the box!
     if (selectedSample?.clinical_history) {
       setClinicalHistory(selectedSample.clinical_history);
-      console.log(
-        "Clinical history loaded from sample:",
-        selectedSample.clinical_history,
-      );
-    } else {
-      // Optional: Reset if it's a new sample with no history
-      setClinicalHistory("");
     }
   }, [selectedSample]);
-  const toggleMultiSelect = (
-    currentItems: string[],
-    setFunction: (val: string[]) => void,
-    item: string,
-  ) => {
+
+  // --- HELPERS ---
+  const toggleMultiSelect = (currentItems, setFunction, item) => {
     if (currentItems.includes(item)) {
-      // If already selected, remove it
       setFunction(currentItems.filter((i) => i !== item));
     } else {
-      // If not selected, add it
       setFunction([...currentItems, item]);
     }
   };
-  const toggleSelection = (
-    list: string[],
-    setList: (val: string[]) => void,
-    item: string,
-  ) => {
-    if (list.includes(item)) {
-      // If it's already selected, remove it
-      setList(list.filter((i) => i !== item));
-    } else {
-      // If it's not selected, add it to the list
-      setList([...list, item]);
-    }
-  };
 
-  // Ensure showFollowUpOptions and selectedFollowUp already exist from your previous code
+  const formatArray = (arr) => (arr && arr.length > 0 ? arr.join(", ") : "");
 
-  // --- 2. REPORT GENERATION LOGIC ---
-  // Replace your old generateDiagnosis with this:
+  // --- PREVIEW LOGIC ---
   const getReportSections = () => {
-    // Helper to join array items with a comma or return "None"
-    const formatArray = (arr: string[]) =>
-      arr.length > 0 ? arr.join(", ") : "None";
-
     return [
+      { label: "SPECIMEN ADEQUACY", value: specimenAdequacyText },
       {
-        label: "SPECIMEN ADEQUACY",
-        value: isAdequate
-          ? "Satisfactory for evaluation."
-          : "Unsatisfactory for evaluation.",
+        label: "CLINICAL IMPRESSION",
+        value: selectedResults.includes(
+          "NILM ( Negative for Intraepithelial Lesion or Malignancy )",
+        )
+          ? "NEGATIVE FOR INTRAEPITHELIAL LESION OR MALIGNANCY (NILM)."
+          : showImpression &&
+              (selectedResults.length > 0 || glandularResults.length > 0)
+            ? `${impressionCategory}: ${formatArray(impressionCategory === "Squamous" ? selectedResults : glandularResults)}.`
+            : "NEGATIVE FOR INTRAEPITHELIAL LESION OR MALIGNANCY (NILM).",
       },
       {
-        label: "QUALITY INDICATORS",
-        // Grouping both into one section for the preview
-        value: `Transformation zone: ${formatArray(tZone)}. Obscuring factors: ${formatArray(obscuringFactors)}.`,
+        label: "MICROSCOPIC DESCRIPTION",
+        value: (
+          <ul className="text-[10px] space-y-1 pl-4 list-disc font-medium mt-1">
+            <li>
+              Squamous:{" "}
+              {[...selectedSquamous, otherSquamous]
+                .filter(Boolean)
+                .join(", ") || "None"}
+            </li>
+            <li>
+              Glandular: Endocervical cells {endocervicalStatus || "not found"}
+            </li>
+            <li>Inflammation: {inflammationLevel}</li>
+            <li>Abnormalities: {epithelialNotes || "Absent"}</li>
+            <li>Organisms: {selectedOrganisms.join(", ") || "Not detected"}</li>
+            {/* ADD THIS NEW ITEM */}
+            <li>Other findings: {otherMicroscopy}</li>
+          </ul>
+        ),
       },
+      { label: "CLINICAL HISTORY", value: clinicalHistory || "None provided." },
       {
-        label: "INTERPRETATION / RESULT",
-        value:
-          // 1. Check if NILM is explicitly selected in the results
-          selectedResults.includes("NILM")
-            ? "NEGATIVE FOR INTRAEPITHELIAL LESION OR MALIGNANCY (NILM)."
-            : // 2. If abnormality switch is ON, show the specific findings
-              showAbnormality
-              ? `${abnormalityCategory}: ${formatArray(
-                  abnormalityCategory === "Squamous"
-                    ? selectedResults
-                    : glandularResults,
-                )}.`
-              : // 3. Fallback: If switch is OFF, it's always NILM
-                "NEGATIVE FOR INTRAEPITHELIAL LESION OR MALIGNANCY (NILM).",
-      },
-      {
-        label: "NON-NEOPLASTIC FINDINGS",
-        value: showInflammatory
-          ? `Findings: ${formatArray(selectedNonNeoplastic)}. Organisms: ${formatArray(selectedOrganisms)}.`
-          : "None identified.",
-      },
-      {
-        label: "FOLLOW-UP RECOMMENDATION",
+        label: "FOLLOW-UP",
         value:
           showFollowUp && selectedFollowUps.length > 0
             ? selectedFollowUps.join(", ")
@@ -146,99 +111,100 @@ const LBCReporting = ({ selectedSample, onBack }) => {
       },
     ];
   };
-  // FOR PREPARING THE DATA TO BE SENT TO BACKEND FOR PDF GENERATION AND FINALIZATION
+
+  // --- DATA PREPARATION ---
   const prepareReportData = () => {
+    const microscopyList = [
+      `Squamous Epithelial cells: ${[...selectedSquamous, otherSquamous].filter(Boolean).join(", ") || "None"}`,
+      `Glandular cells: Endocervical cells ${endocervicalStatus || "not identified"}`,
+      `Inflammation: ${inflammationLevel}`,
+      `Epithelial cell abnormalities: ${epithelialNotes || "Absent"}`,
+      `Organisms: ${selectedOrganisms.length > 0 ? selectedOrganisms.join(", ") : "Not detected"}`,
+      `Other findings: ${otherMicroscopy || "None"}`,
+    ];
+
     return {
-      // 1. Header Info (From the database/selected sample)
-      mr_number: selectedSample.barcode,
-      patient_name: selectedSample.patient_name,
-      age: selectedSample.age,
-      gender: selectedSample.gender,
-      doctor_name: selectedSample.doctor_name,
-      hospital_name: selectedSample.hospital_name,
-      specimen_type: selectedSample.sample_type || "LBC",
-      collection_date: selectedSample.collected_at
+      barcode: selectedSample?.barcode,
+      mr_number: selectedSample?.barcode,
+      patient_name: selectedSample?.patient_name,
+      age: selectedSample?.age,
+      gender: selectedSample?.gender,
+      doctor_name: selectedSample?.doctor_name,
+      hospital_name: selectedSample?.hospital_name,
+      specimen_type: selectedSample?.sample_type || "LBC",
+      collection_date: selectedSample?.collected_at
         ? new Date(selectedSample.collected_at).toLocaleDateString("en-GB")
         : "N/A",
-
-      // 2. Clinical History (From your live textarea state)
-      clinical_history: clinicalHistory || "None provided",
-
-      // 3. Microscopic Description (The Vertical List)
-      // We create an array here so the PDF generator can loop through it for bullets
-      microscopy_list: [
-        `Squamous Epithelial cells: ${selectedSquamous.length > 0 ? selectedSquamous.join(", ") : "Superficial and Intermediate cells present"}`,
-        `Glandular cells: ${selectedGlandular.length > 0 ? selectedGlandular.join(", ") : "Endocervical cells present"}`,
-        `Inflammation: ${inflammationLevel || "Mild"}`,
-        `Organisms: ${selectedOrganisms.length > 0 ? selectedOrganisms.join(", ") : "Not detected"}`,
-        `Epithelial Cell Abnormalities: ${selectedResults.includes("NILM") ? "Absent" : "Present"}`,
-      ],
-
-      // 4. Adequacy & Quality
-      specimen_adequacy: isAdequate
-        ? "Satisfactory for evaluation."
-        : "Unsatisfactory for evaluation",
-
-      quality_indicators: `TZ Component: ${tZone.length > 0 ? tZone.join(", ") : "Present"}. Obscuring factors: ${obscuringFactors?.join(", ") || "None"}.`,
-
-      // 5. Interpretation / Result
+      clinical_history: clinicalHistory || "None provided.",
+      microscopy_description: microscopyDescription,
+      specimen_adequacy: specimenAdequacyText,
+      microscopy_list: microscopyList,
       result: selectedResults.includes("NILM")
-        ? "NEGATIVE FOR INTRAEPITHELIAL LESION OR MALIGNANCY (NILM)"
-        : showAbnormality
-          ? `${abnormalityCategory}: ${[...selectedResults, ...glandularResults].join(", ")}`
-          : "NEGATIVE FOR INTRAEPITHELIAL LESION OR MALIGNANCY (NILM)",
-
-      // 6. Non-Neoplastic Findings
-      non_neoplastic_findings:
-        [...(selectedNonNeoplastic || []), ...(selectedOrganisms || [])]
-          .length > 0
-          ? [...selectedNonNeoplastic, ...selectedOrganisms].join(", ")
-          : "None identified",
-
-      // 7. Follow-up Recommendations (Sent as an array for the bulleted list)
+        ? "NILM(Negative for Intraepithelial Lesion or Malignancy)"
+        : `${impressionCategory}: ${[...selectedResults, ...glandularResults].join(", ")}`,
       recommendations_list:
-        selectedFollowUps.length > 0
+        showFollowUp && selectedFollowUps.length > 0
           ? selectedFollowUps
-          : ["Routine screening"],
+          : ["Routine screening."],
+      image1_path: selectedSample?.image1_path,
+      image2_path: selectedSample?.image2_path,
     };
   };
-  // THIS FUNCTION IS FOR PREVIEW THE REPORT IN NEW TAB
+
+  // --- API ACTIONS ---
   const handlePreview = async () => {
-    const reportData = prepareReportData(); // Translates your UI into an object
-
-    const response = await fetch("http://localhost:5000/api/report/preview", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(reportData), // SENDING THE PACKAGE
-    });
-
-    if (response.ok) {
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      window.open(url); // Opens the PDF in a new tab
+    try {
+      const reportData = prepareReportData();
+      const response = await fetch(`${EC2_IP}/api/report/preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reportData),
+      });
+      if (response.ok) {
+        const blob = await response.blob();
+        window.open(window.URL.createObjectURL(blob), "_blank");
+      } else {
+        alert("Preview failed.");
+      }
+    } catch (err) {
+      alert("Server connection error.");
     }
   };
-  //THIS FUNCTION IS FOR FINALIZING THE REPORT AND SAVING TO SERVER
+
   const handleFinalizeReport = async () => {
-    const response = await fetch("http://localhost:5000/api/report/finalize", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(prepareReportData()),
-    });
-    const result = await response.json();
-    if (result.success) alert("Report finalized and saved to server.");
+    try {
+      const reportData = prepareReportData();
+      const response = await fetch(`${EC2_IP}/api/report/finalize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reportData),
+      });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", `Report_${selectedSample.barcode}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        alert("Finalization failed.");
+      }
+    } catch (err) {
+      alert("Server connection error.");
+    }
   };
 
-  // --- 4. RENDER HELPER ---
   const ActionButton = ({ label, active, onClick, color = "blue" }) => (
     <Button
       variant="outline"
       size="sm"
       onClick={onClick}
-      className={`rounded-full h-8 px-4 text-[11px] font-bold transition-all ${
+      className={`rounded-full h-8 px-4 text-[10px] font-bold transition-all ${
         active
-          ? `bg-${color}-600 text-white border-${color}-600 shadow-sm`
-          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+          ? `bg-${color}-600 text-white border-${color}-600`
+          : "bg-white text-slate-600 border-slate-200"
       }`}
     >
       {label}
@@ -246,16 +212,11 @@ const LBCReporting = ({ selectedSample, onBack }) => {
   );
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 animate-in fade-in duration-500 w-full">
-      {/* HEADER SECTION (Top Bar) */}
-      <div className="bg-white border-b p-4 flex items-center justify-between w-full shadow-sm sticky top-0 z-10">
+    <div className="flex flex-col h-full bg-slate-50 w-full overflow-hidden">
+      {/* HEADER BAR */}
+      <div className="bg-white border-b p-4 flex items-center justify-between shadow-sm sticky top-0 z-20">
         <div className="flex items-center gap-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="hover:bg-slate-100"
-          >
+          <Button variant="ghost" size="sm" onClick={onBack}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex gap-10">
@@ -266,7 +227,7 @@ const LBCReporting = ({ selectedSample, onBack }) => {
                 label: "Age / Sex",
                 value: `${selectedSample?.age || "N/A"} / ${selectedSample?.gender || "N/A"}`,
               },
-              { label: "Specimen", value: selectedSample?.sample_type },
+              { label: "Specimen", value: "LBC" },
             ].map((info) => (
               <div key={info.label} className="flex flex-col">
                 <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">
@@ -279,409 +240,232 @@ const LBCReporting = ({ selectedSample, onBack }) => {
             ))}
           </div>
         </div>
-        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-bold">
-          <History className="h-3 w-3 mr-1" /> Prior: NILM (2025)
-        </Badge>
       </div>
 
-      <div className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 w-full overflow-y-auto">
-        {/* LEFT COLUMN: DIAGNOSTIC FORM */}
+      <div className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-y-auto">
         <div className="lg:col-span-2 space-y-6">
           <Card className="border-none shadow-sm ring-1 ring-slate-200">
-            <CardHeader className="py-4 px-6 border-b flex flex-row items-center justify-between bg-white rounded-t-xl">
-              <div className="flex items-center gap-2 font-black text-slate-800 uppercase tracking-tight">
-                <CheckSquare className="h-5 w-5 text-blue-500" /> Diagnostic
-                Actions
-              </div>
+            <CardHeader className="py-4 px-6 border-b bg-white font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+              <CheckSquare className="h-5 w-5 text-blue-500" /> Diagnostic
+              Actions
             </CardHeader>
             <CardContent className="p-6 space-y-8">
-              {/* 1. ADEQUACY SECTION */}
-              <div className="space-y-4">
-                {/* The Main "Turn On/Off" and Adequacy Label */}
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-black text-slate-900 flex items-center gap-2 uppercase tracking-wide">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    Specimen Adequacy
-                  </Label>
-                  <Switch
-                    checked={isAdequate}
-                    onCheckedChange={(val) => {
-                      setIsAdequate(val);
-                      // Optional: Clear sub-selections if turned off
-                      if (!val) {
-                        setTZone([]);
-                        setObscuringFactors([]);
-                      }
-                    }}
-                  />
-                </div>
-
-                {/* Satisfactory / Unsatisfactory Buttons */}
-                <div className="flex flex-wrap gap-2">
-                  <ActionButton
-                    label="Satisfactory"
-                    active={isAdequate}
-                    onClick={() => setIsAdequate(true)}
-                    color="emerald"
-                  />
-                  <ActionButton
-                    label="Unsatisfactory"
-                    active={!isAdequate}
-                    onClick={() => setIsAdequate(false)}
-                    color="red"
-                  />
-                </div>
-
-                {/* These sections only appear if "Satisfactory" (isAdequate) is true */}
-                {isAdequate && (
-                  <div className="space-y-6 animate-in slide-in-from-top-2 duration-300">
-                    <Separator className="opacity-50" />
-
-                    {/* Transformation Zone Component */}
-                    <div className="space-y-3">
-                      <Label className="text-[10px] font-black uppercase text-slate-400">
-                        Transformation Zone Component
-                      </Label>
-                      <div className="flex gap-2">
-                        {["Present", "Absent", "Cannot be assessed"].map(
-                          (opt) => (
-                            <ActionButton
-                              key={opt}
-                              label={opt}
-                              active={tZone.includes(opt)}
-                              onClick={() =>
-                                toggleMultiSelect(tZone, setTZone, opt)
-                              }
-                              color="emerald"
-                            />
-                          ),
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Obscuring Factors */}
-                    <div className="space-y-3">
-                      <Label className="text-[10px] font-black uppercase text-slate-400">
-                        Obscuring Factors (50-75%)
-                      </Label>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          "Blood",
-                          "Inflammation",
-                          "Lubricant",
-                          "Thick Smear",
-                        ].map((opt) => (
-                          <ActionButton
-                            key={opt}
-                            label={opt}
-                            active={obscuringFactors.includes(opt)}
-                            onClick={() =>
-                              toggleMultiSelect(
-                                obscuringFactors,
-                                setObscuringFactors,
-                                opt,
-                              )
-                            }
-                            color="emerald"
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
+              <div className="space-y-3">
+                <Label className="text-xs font-black text-slate-900 uppercase">
+                  Specimen Adequacy
+                </Label>
+                <textarea
+                  className="w-full p-3 text-xs border rounded-lg bg-slate-50 h-16"
+                  value={specimenAdequacyText}
+                  onChange={(e) => setSpecimenAdequacyText(e.target.value)}
+                />
               </div>
-              {/* 2. EPITHELIAL CELL ABNORMALITIES SECTION */}
+
+              {/* CLINICAL IMPRESSION */}
               <div className="space-y-4 pt-4 border-t">
-                {/* MASTER HEADER: Matches Specimen Adequacy Style */}
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs font-black text-slate-900 flex items-center gap-2 uppercase tracking-wide">
-                    <AlertTriangle className="h-4 w-4 text-blue-600" />
-                    Epithelial Cell Abnormalities
+                  <Label className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                    <AlertTriangle className="h-4 w-4 text-blue-600" /> Clinical
+                    Impression
                   </Label>
                   <Switch
-                    checked={showAbnormality}
-                    onCheckedChange={(val) => {
-                      setShowAbnormality(val);
-                      // Clear sub-selections when turned off for a clean report
-                      if (!val) {
-                        setSelectedResults([]);
-                        setGlandularResults([]);
-                      }
-                    }}
+                    checked={showImpression}
+                    onCheckedChange={setShowImpression}
                   />
                 </div>
-
-                {/* CONDITIONAL CONTENT: Only shows if showAbnormality is true */}
-                {showAbnormality && (
-                  <div className="space-y-6 animate-in slide-in-from-top-2 duration-300 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
-                    {/* 1. TABS / CATEGORY BAR */}
+                {showImpression && (
+                  <div className="space-y-4 p-4 bg-slate-50/50 rounded-xl border border-slate-100">
                     <div className="flex gap-2 p-1 bg-slate-200/50 rounded-lg w-fit">
                       {["NILM", "Squamous", "Glandular"].map((cat) => (
                         <button
                           key={cat}
                           onClick={() => {
-                            setAbnormalityCategory(cat);
-                            // Logic to clear arrays when switching tabs to prevent data pollution
+                            setImpressionCategory(cat);
                             setSelectedResults(cat === "NILM" ? ["NILM"] : []);
-                            setGlandularResults([]);
                           }}
-                          className={`px-6 py-1.5 rounded-md text-[11px] font-black transition-all ${
-                            (cat === "NILM" &&
-                              selectedResults.includes("NILM")) ||
-                            (abnormalityCategory === cat &&
-                              !selectedResults.includes("NILM"))
-                              ? cat === "NILM"
-                                ? "bg-emerald-500 text-white shadow-sm"
-                                : "bg-white text-blue-600 shadow-sm"
-                              : "text-slate-500 hover:text-slate-700"
-                          }`}
+                          className={`px-6 py-1.5 rounded-md text-[11px] font-black ${impressionCategory === cat ? "bg-white text-blue-600 shadow-sm" : "text-slate-500"}`}
                         >
                           {cat}
                         </button>
                       ))}
                     </div>
-
-                    {/* 2. DYNAMIC CONTENT AREA */}
-                    <div className="animate-in fade-in duration-300">
-                      {selectedResults.includes("NILM") ? (
-                        /* NILM VIEW */
-                        <div className="flex flex-col items-center justify-center py-10 bg-emerald-50/50 rounded-xl border border-dashed border-emerald-200">
-                          <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-2" />
-                          <p className="text-[11px] font-black text-emerald-700 uppercase tracking-widest">
-                            Negative for Malignancy (NILM)
-                          </p>
-                          <p className="text-[10px] text-emerald-600 mt-1 italic">
-                            No epithelial or glandular cell abnormalities
-                            detected.
-                          </p>
-                        </div>
-                      ) : abnormalityCategory === "Squamous" ? (
-                        /* SQUAMOUS VIEW */
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="space-y-3">
-                            <Label className="text-[10px] font-black text-slate-400 uppercase">
-                              Atypical - NOS
-                            </Label>
-                            <div className="flex flex-wrap gap-2">
-                              {[
-                                "ASC-US",
-                                "ASC-H",
-                                "LSIL",
-                                "HSIL",
-                                "LSIL-H",
-                              ].map((btn) => (
-                                <ActionButton
-                                  key={btn}
-                                  label={btn}
-                                  active={selectedResults.includes(btn)}
-                                  onClick={() =>
-                                    toggleMultiSelect(
-                                      selectedResults,
-                                      setSelectedResults,
-                                      btn,
-                                    )
-                                  }
-                                />
-                              ))}
-                            </div>
-                          </div>
-                          <div className="space-y-3">
-                            <Label className="text-[10px] font-black text-slate-400 uppercase">
-                              Neoplastic
-                            </Label>
-                            <div className="flex flex-wrap gap-2">
-                              {["SCC"].map((btn) => (
-                                <ActionButton
-                                  key={btn}
-                                  label={btn}
-                                  active={selectedResults.includes(btn)}
-                                  onClick={() =>
-                                    toggleMultiSelect(
-                                      selectedResults,
-                                      setSelectedResults,
-                                      btn,
-                                    )
-                                  }
-                                  color="red"
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        /* GLANDULAR VIEW */
-                        <div className="space-y-6">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-black text-slate-400 uppercase">
-                                Atypical - NOS
-                              </Label>
-                              <div className="flex flex-wrap gap-2">
-                                {[
-                                  "Atyp. Endocervical NOS",
-                                  "Atyp. Glandular NOS",
-                                ].map((btn) => (
-                                  <ActionButton
-                                    key={btn}
-                                    label={btn}
-                                    active={glandularResults.includes(btn)}
-                                    onClick={() =>
-                                      toggleMultiSelect(
-                                        glandularResults,
-                                        setGlandularResults,
-                                        btn,
-                                      )
-                                    }
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-black text-slate-400 uppercase">
-                                Favor Neoplastic
-                              </Label>
-                              <div className="flex flex-wrap gap-2">
-                                {[
-                                  "Atyp. Endocervical - Favor Neoplastic",
-                                  "Atyp. Glandular - Favor Neoplastic",
-                                ].map((btn) => (
-                                  <ActionButton
-                                    key={btn}
-                                    label={btn}
-                                    active={glandularResults.includes(btn)}
-                                    onClick={() =>
-                                      toggleMultiSelect(
-                                        glandularResults,
-                                        setGlandularResults,
-                                        btn,
-                                      )
-                                    }
-                                    color="orange"
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="pt-4 border-t border-slate-200">
-                            <Label className="text-[10px] font-black text-red-500 uppercase tracking-widest">
-                              Adenocarcinoma Spectrum
-                            </Label>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {[
-                                "Endocervical AIS",
-                                "Endocervical Adenocarcinoma",
-                                "Endometrial Adenocarcinoma",
-                                "Extrauterine Adenocarcinoma",
-                                "Adenocarcinoma - NOS",
-                              ].map((btn) => (
-                                <ActionButton
-                                  key={btn}
-                                  label={btn}
-                                  active={glandularResults.includes(btn)}
-                                  onClick={() =>
-                                    toggleMultiSelect(
-                                      glandularResults,
-                                      setGlandularResults,
-                                      btn,
-                                    )
-                                  }
-                                  color="red"
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                    <div className="flex flex-wrap gap-2">
+                      {impressionCategory === "Squamous" &&
+                        [
+                          "ASC-US",
+                          "ASC-H",
+                          "LSIL",
+                          "HSIL",
+                          "LSIL-H",
+                          "SCC",
+                        ].map((opt) => (
+                          <ActionButton
+                            key={opt}
+                            label={opt}
+                            active={selectedResults.includes(opt)}
+                            onClick={() =>
+                              toggleMultiSelect(
+                                selectedResults,
+                                setSelectedResults,
+                                opt,
+                              )
+                            }
+                          />
+                        ))}
+                      {impressionCategory === "Glandular" &&
+                        [
+                          "Atyp. Endocervical NOS",
+                          "Atyp. Glandular NOS",
+                          "Atyp. Endocervical - Favor Neoplastic",
+                          "Endocervical AIS",
+                          "Endocervical Adeno.",
+                          "Endometrial Adeno.",
+                        ].map((opt) => (
+                          <ActionButton
+                            key={opt}
+                            label={opt}
+                            active={glandularResults.includes(opt)}
+                            onClick={() =>
+                              toggleMultiSelect(
+                                glandularResults,
+                                setGlandularResults,
+                                opt,
+                              )
+                            }
+                            color="orange"
+                          />
+                        ))}
                     </div>
                   </div>
                 )}
               </div>
-              {/* 3. INFLAMMATORY / INFECTIVE CHANGES (The Fixed Section) */}
-              <div className="space-y-4 pt-4 border-t">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-black text-slate-900 flex items-center gap-2 uppercase tracking-wide">
-                    <Microscope className="h-4 w-4 text-slate-600" />{" "}
-                    Inflammatory / Infective Changes
+
+              {/* MICROSCOPIC DESCRIPTION */}
+              <div className="space-y-6 pt-4 border-t">
+                <Label className="text-sm font-black text-blue-700 uppercase">
+                  Microscopic Description
+                </Label>
+                <div className="space-y-3 pl-2">
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase">
+                    1. Squamous Epithelial Cells
                   </Label>
-                  <Switch
-                    checked={showInflammatory}
-                    onCheckedChange={setShowInflammatory}
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      "Superficial",
+                      "Intermediate",
+                      "Parabasal",
+                      "Metaplastic",
+                    ].map((opt) => (
+                      <ActionButton
+                        key={opt}
+                        label={opt}
+                        active={selectedSquamous.includes(opt)}
+                        onClick={() =>
+                          toggleMultiSelect(
+                            selectedSquamous,
+                            setSelectedSquamous,
+                            opt,
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+                  <input
+                    className="w-full mt-1 p-2 text-xs border-b bg-transparent outline-none italic"
+                    placeholder="Others..."
+                    value={otherSquamous}
+                    onChange={(e) => setOtherSquamous(e.target.value)}
                   />
                 </div>
-
-                {showInflammatory && (
-                  <div className="space-y-6 animate-in slide-in-from-top-2 duration-300 p-4 bg-slate-50/50 rounded-xl border border-slate-100">
-                    <div className="space-y-3">
-                      <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        Non-Neoplastic Changes
-                      </Label>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          "Inflammation",
-                          "Atrophy",
-                          "Reactive/Reparative",
-                          "Radiation change",
-                          "IUD effect",
-                        ].map((opt) => (
-                          <ActionButton
-                            key={opt}
-                            label={opt}
-                            // ✅ Check if the option exists in the array
-                            active={selectedNonNeoplastic.includes(opt)}
-                            // ✅ Add or remove the option using the toggle helper
-                            onClick={() =>
-                              toggleMultiSelect(
-                                selectedNonNeoplastic,
-                                setSelectedNonNeoplastic,
-                                opt,
-                              )
-                            }
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        Organisms
-                      </Label>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          "Candida",
-                          "Trichomonas",
-                          "Bacterial vaginosis flora",
-                          "Actinomyces",
-                          "HSV",
-                          "CMV",
-                          "Doderlein Bacilli",
-                        ].map((opt) => (
-                          <ActionButton
-                            key={opt}
-                            label={opt}
-                            // ✅ Uses the array to check if the button should be blue
-                            active={selectedOrganisms.includes(opt)}
-                            // ✅ Uses the toggle helper to add/remove from the array
-                            onClick={() =>
-                              toggleMultiSelect(
-                                selectedOrganisms,
-                                setSelectedOrganisms,
-                                opt,
-                              )
-                            }
-                            color="blue"
-                          />
-                        ))}
-                      </div>
-                    </div>
+                <div className="space-y-2 pl-2">
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase">
+                    2. Glandular Cells (Endocervical)
+                  </Label>
+                  <div className="flex gap-2">
+                    {["Numerous", "Occasional", "Absent"].map((opt) => (
+                      <ActionButton
+                        key={opt}
+                        label={opt}
+                        active={endocervicalStatus === opt}
+                        onClick={() => setEndocervicalStatus(opt)}
+                        color="emerald"
+                      />
+                    ))}
                   </div>
-                )}
+                </div>
+                <div className="space-y-2 pl-2">
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase">
+                    3. Inflammation
+                  </Label>
+                  <div className="flex gap-2">
+                    {["None", "Mild", "Moderate", "Severe"].map((opt) => (
+                      <ActionButton
+                        key={opt}
+                        label={opt}
+                        active={inflammationLevel === opt}
+                        onClick={() => setInflammationLevel(opt)}
+                        color="orange"
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2 pl-2">
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase">
+                    4. Epithelial Cell Abnormalities (Manual)
+                  </Label>
+                  <textarea
+                    className="w-full h-12 p-2 text-xs border rounded bg-white"
+                    value={epithelialNotes}
+                    onChange={(e) => setEpithelialNotes(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2 pl-2">
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase">
+                    5. Organisms
+                  </Label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      "Candida",
+                      "Trichomonas",
+                      "BV Flora",
+                      "Actinomyces",
+                      "HSV",
+                      "Doderlein Bacilli",
+                    ].map((opt) => (
+                      <ActionButton
+                        key={opt}
+                        label={opt}
+                        active={selectedOrganisms.includes(opt)}
+                        onClick={() =>
+                          toggleMultiSelect(
+                            selectedOrganisms,
+                            setSelectedOrganisms,
+                            opt,
+                          )
+                        }
+                        color="indigo"
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2 pl-2">
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase">
+                    6. Other Microscopic Findings
+                  </Label>
+                  <textarea
+                    className="w-full h-12 p-2 text-xs border rounded bg-white"
+                    placeholder="Type any other observations here..."
+                    value={otherMicroscopy}
+                    onChange={(e) => setOtherMicroscopy(e.target.value)}
+                  />
+                </div>
               </div>
 
-              {/* 4. FOLLOW-UP SECTION */}
-              <div className="space-y-4 pt-4 border-t">
+              {/* FOLLOW-UP */}
+              <div className="space-y-4 pt-6 border-t">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs font-black text-slate-900 flex items-center gap-2 uppercase tracking-wide">
-                    <ArrowUpRight className="h-4 w-4 text-blue-600" /> Follow-up
-                    Required
+                  <Label className="text-xs font-black text-slate-900 uppercase">
+                    Follow-up Required
                   </Label>
                   <Switch
                     checked={showFollowUp}
@@ -689,138 +473,97 @@ const LBCReporting = ({ selectedSample, onBack }) => {
                   />
                 </div>
                 {showFollowUp && (
-                  <div className="p-4 bg-slate-50/50 rounded-xl border border-slate-100 animate-in slide-in-from-top-2">
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        "Repeat smear",
-                        "HPV triage",
-                        "Colposcopy",
-                        "Urgent colposcopy",
-                        "Oncology referral",
-                        "Biopsy",
-                      ].map((opt) => (
-                        <ActionButton
-                          key={opt}
-                          label={opt}
-                          // ✅ Check if the option is in the multi-select array
-                          active={selectedFollowUps.includes(opt)}
-                          // ✅ Toggle the selection using the helper function
-                          onClick={() =>
-                            toggleMultiSelect(
-                              selectedFollowUps,
-                              setSelectedFollowUps,
-                              opt,
-                            )
-                          }
-                          color="emerald"
-                        />
-                      ))}
-                    </div>
+                  <div className="flex flex-wrap gap-2 p-4 bg-slate-50 rounded-xl mt-3">
+                    {[
+                      "Repeat smear",
+                      "HPV triage",
+                      "Colposcopy",
+                      "Urgent colposcopy",
+                      "Biopsy",
+                      "Oncology referral",
+                    ].map((opt) => (
+                      <ActionButton
+                        key={opt}
+                        label={opt}
+                        active={selectedFollowUps.includes(opt)}
+                        onClick={() =>
+                          toggleMultiSelect(
+                            selectedFollowUps,
+                            setSelectedFollowUps,
+                            opt,
+                          )
+                        }
+                        color="emerald"
+                      />
+                    ))}
                   </div>
                 )}
               </div>
-            </CardContent>{" "}
+            </CardContent>
           </Card>
 
-          {/* NOTES SECTION */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="border-none shadow-sm ring-1 ring-slate-200">
-              <CardHeader className="py-3 px-4 border-b flex items-center gap-2 text-xs font-black uppercase text-slate-500">
-                <Microscope className="h-4 w-4" /> Clinical History
-              </CardHeader>
-              <CardContent className="p-4">
-                <textarea
-                  className="w-full h-32 p-3 text-xs border rounded-lg bg-slate-50/50 focus:ring-2 focus:ring-blue-500 outline-none resize-none font-medium leading-relaxed"
-                  placeholder="Enter clinical history..."
-                  value={clinicalHistory}
-                  onChange={(e) => setClinicalHistory(e.target.value)}
-                />
-              </CardContent>
+          {/* TEXT AREAS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-20">
+            <Card className="p-4">
+              <Label className="text-[11px] font-black uppercase text-blue-600">
+                Clinical History
+              </Label>
+              <textarea
+                className="w-full h-32 mt-2 p-3 text-xs border rounded bg-white"
+                value={clinicalHistory}
+                onChange={(e) => setClinicalHistory(e.target.value)}
+              />
             </Card>
-            <Card className="border-none shadow-sm ring-1 ring-slate-200">
-              <CardHeader className="py-3 px-4 border-b flex items-center gap-2 text-xs font-black uppercase text-slate-500">
-                <Microscope className="h-4 w-4" /> Microscopy Findings
-              </CardHeader>
-              <CardContent className="p-4">
-                <textarea
-                  className="w-full h-32 p-3 text-xs border rounded-lg bg-slate-50/50 focus:ring-2 focus:ring-blue-500 outline-none resize-none font-medium leading-relaxed"
-                  value={microscopyDescription}
-                  onChange={(e) => setMicroscopyDescription(e.target.value)}
-                />
-              </CardContent>
-            </Card>
-
-            <Card className="border-none shadow-sm ring-1 ring-slate-200">
-              <CardHeader className="py-3 px-4 border-b flex items-center gap-2 text-xs font-black uppercase text-slate-500">
-                <Stethoscope className="h-4 w-4" /> Clinical Comments
-              </CardHeader>
-              <CardContent className="p-4">
-                <textarea
-                  className="w-full h-32 p-3 text-xs border rounded-lg bg-slate-50/50 focus:ring-2 focus:ring-blue-500 outline-none resize-none font-medium"
-                  placeholder="Additional patient clinical history..."
-                  value={clinicalComment}
-                  onChange={(e) => setClinicalComment(e.target.value)}
-                />
-              </CardContent>
+            <Card className="p-4">
+              <Label className="text-[11px] font-black uppercase text-blue-600">
+                Microscopy Narrative
+              </Label>
+              <textarea
+                className="w-full h-32 mt-2 p-3 text-xs border rounded bg-white"
+                value={microscopyDescription}
+                onChange={(e) => setMicroscopyDescription(e.target.value)}
+              />
             </Card>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: PREVIEW & FINALIZATION */}
-        {/* RIGHT COLUMN: PREVIEW & FINALIZATION */}
+        {/* PREVIEW SIDEBAR */}
         <div className="lg:col-span-1">
-          <div className="sticky top-24 space-y-6">
-            <Card className="border-none shadow-xl ring-1 ring-slate-200 overflow-hidden bg-white flex flex-col min-h-[600px]">
-              <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between shrink-0">
-                <span className="text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
-                  <Printer className="h-4 w-4 text-blue-400" /> Live Report
-                  Preview
-                </span>
-              </div>
-
-              <CardContent className="p-6 space-y-6 flex-1 text-sm overflow-y-auto">
-                {getReportSections().map((section, idx) => (
-                  <div key={idx} className="space-y-1">
-                    <h4 className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">
-                      {section.label}
-                    </h4>
-                    <p className="text-xs font-semibold text-slate-900 leading-relaxed italic">
-                      {section.value}
-                    </p>
+          <Card className="sticky top-24 border-none shadow-xl bg-white flex flex-col min-h-[600px]">
+            <div className="bg-slate-900 text-white px-4 py-3 flex items-center gap-2">
+              <Printer className="h-4 w-4 text-blue-400" />
+              <span className="text-[11px] font-black uppercase tracking-widest">
+                Live Report Preview
+              </span>
+            </div>
+            <CardContent className="p-6 space-y-6 flex-1 overflow-y-auto">
+              {getReportSections().map((section, idx) => (
+                <div key={idx} className="space-y-1">
+                  <h4 className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">
+                    {section.label}
+                  </h4>
+                  <div className="text-xs font-semibold text-slate-900 italic leading-relaxed">
+                    {section.value}
                   </div>
-                ))}
-
-                {/* FOOTER DISCLAIMER */}
-                <div className="pt-4 border-t border-dashed">
-                  <p className="text-[9px] text-slate-400 italic leading-tight">
-                    Pre-analytical and analytical quality parameters including
-                    specimen identification, preparation, and staining quality
-                    were verified prior to cytologic interpretation.
-                  </p>
                 </div>
-              </CardContent>
-
-              {/* NEW SECTION: REPORT ACTIONS */}
-              <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3 shrink-0">
-                <Button
-                  variant="outline"
-                  className="w-full py-6 border-blue-600 text-blue-600 font-bold hover:bg-blue-50 transition-colors uppercase tracking-widest text-[11px]"
-                  onClick={handlePreview}
-                >
-                  <Eye className="mr-2 h-4 w-4" />
-                  Report Preview
-                </Button>
-
-                <Button
-                  className="w-full py-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg transition-all uppercase tracking-widest text-[11px]"
-                  onClick={handleFinalizeReport} // <--- Added here
-                >
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Finalize Report
-                </Button>
-              </div>
-            </Card>
-          </div>
+              ))}
+            </CardContent>
+            <div className="p-4 border-t space-y-3">
+              <Button
+                variant="outline"
+                className="w-full py-6 border-blue-600 text-blue-600 font-bold uppercase text-[11px]"
+                onClick={handlePreview}
+              >
+                <Eye className="mr-2 h-4 w-4" /> Report Preview in Browser
+              </Button>
+              <Button
+                className="w-full py-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold uppercase text-[11px]"
+                onClick={handleFinalizeReport}
+              >
+                <CheckCircle className="mr-2 h-4 w-4" /> Finalize Report
+              </Button>
+            </div>
+          </Card>
         </div>
       </div>
     </div>
