@@ -254,7 +254,7 @@ export const generateLBCReport = (data, stream) => {
     .fillColor("black")
     .font("Helvetica-Bold")
     .fontSize(7.6)
-    .text("IMPORTANT NOTES", notesX + 10, currentY + 8);
+    .text("IMPORTANT NOTE", notesX + 10, currentY + 8);
 
   const notes = [
     "Clinical correlation: Please correlate clinically.",

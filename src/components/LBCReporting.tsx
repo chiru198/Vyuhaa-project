@@ -68,7 +68,7 @@ const LBCReporting = ({ selectedSample, onBack }) => {
   // --- PREVIEW LOGIC ---
   const getReportSections = () => {
     return [
-      { label: "SPECIMEN ADEQUACY", value: specimenAdequacyText },
+      { label: "SPECIMEN ADEQUACi", value: specimenAdequacyText },
       {
         label: "CLINICAL IMPRESSION",
         value: selectedResults.includes(
