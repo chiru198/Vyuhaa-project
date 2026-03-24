@@ -70,7 +70,7 @@ const LBCReporting = ({ selectedSample, onBack }) => {
     return [
       { label: "SPECIMEN ADEQUACi", value: specimenAdequacyText },
       {
-        label: "CLINICAL IMPRESSION",
+        label: "CLiNICALii IMPRESSION",
         value: selectedResults.includes(
           "NILM ( Negative for Intraepithelial Lesion or Malignancy )",
         )
