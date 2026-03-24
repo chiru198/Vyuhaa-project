@@ -10,30 +10,33 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, UserPlus, LogIn } from "lucide-react";
+import { Loader2, UserPlus, LogIn, Eye, EyeOff } from "lucide-react";
 import cerviaiLogo from "@/assets/cerviai-logo.jpeg";
 
 const LoginForm = () => {
-  // --- New States for Signup ---
+  // --- States ---
   const [isSignup, setIsSignup] = useState(false);
-  const [name, setName] = useState("");
-  const [role, setRole] = useState("customer"); // Default role
-  // -----------------------------
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
+  // --- Form States ---
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [role, setRole] = useState("customer");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
 
-    // Decide which endpoint to hit
+    // Use your EC2 IP for production, localhost for local dev
+    const API_BASE = "http://localhost:5000"; // Change to your EC2 IP when deploying
     const endpoint = isSignup
-      ? "http://localhost:5000/api/auth/signup"
-      : "http://localhost:5000/login";
+      ? `${API_BASE}/api/auth/signup`
+      : `${API_BASE}/login`;
+
     const payload = isSignup
       ? { name, email, password, role }
       : { email, password };
@@ -49,21 +52,20 @@ const LoginForm = () => {
 
       if (response.ok) {
         if (isSignup) {
-          // If signup successful, switch to login mode and show success
-          alert(
-            "Registration successful! Please sign in with your new credentials.",
-          );
+          alert("Registration successful! Please sign in.");
           setIsSignup(false);
-          setIsLoading(false);
+          setPassword(""); // Clear password for security
         } else {
           localStorage.setItem("user", JSON.stringify(data.user));
           window.location.href = "/";
         }
       } else {
-        setError(data.error || "Action failed. Please try again.");
+        setError(data.error || "Action failed. Please check your credentials.");
       }
     } catch (err) {
-      setError("Connection to server failed.");
+      setError(
+        "Connection to server failed. Please check your internet or server status.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -71,7 +73,9 @@ const LoginForm = () => {
 
   return (
     <Card
-      className={`w-full max-w-md shadow-xl border-t-4 transition-all duration-500 ${isSignup ? "border-t-teal-500" : "border-t-blue-600"}`}
+      className={`w-full max-w-md shadow-xl border-t-4 transition-all duration-500 ${
+        isSignup ? "border-t-teal-500" : "border-t-blue-600"
+      }`}
     >
       <CardHeader className="text-center space-y-4 pb-2">
         <div className="flex justify-center">
@@ -102,7 +106,7 @@ const LoginForm = () => {
             </Alert>
           )}
 
-          {/* NEW FIELD: Full Name (Only shows during Signup) */}
+          {/* Full Name (Signup Only) */}
           {isSignup && (
             <div className="space-y-2">
               <Label htmlFor="name" className="text-slate-700 font-semibold">
@@ -119,6 +123,7 @@ const LoginForm = () => {
             </div>
           )}
 
+          {/* Email */}
           <div className="space-y-2">
             <Label htmlFor="email" className="text-slate-700 font-semibold">
               Email Address
@@ -134,8 +139,7 @@ const LoginForm = () => {
             />
           </div>
 
-          {/* NEW FIELD: Role Selection (Only shows during Signup) */}
-          {/* NEW FIELD: Role Selection (Only shows during Signup) */}
+          {/* Role Selection (Signup Only) */}
           {isSignup && (
             <div className="space-y-2">
               <Label htmlFor="role" className="text-slate-700 font-semibold">
@@ -145,17 +149,17 @@ const LoginForm = () => {
                 id="role"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="w-full h-11 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="w-full h-11 rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none"
               >
                 <option value="customer">Customer</option>
                 <option value="pathologist">Pathologist</option>
                 <option value="technician">Lab Technician</option>
-                <option value="accession">Accession Team</option>{" "}
-                {/* Added this line */}
+                <option value="accession">Accession Team</option>
               </select>
             </div>
           )}
 
+          {/* Password with Show/Hide Toggle */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label
@@ -173,20 +177,33 @@ const LoginForm = () => {
                 </button>
               )}
             </div>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="h-11"
-              required
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="h-11 pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 transition-colors"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           <Button
             type="submit"
-            className={`w-full h-11 transition-all shadow-md active:scale-[0.98] ${isSignup ? "bg-teal-600 hover:bg-teal-700" : "bg-blue-600 hover:bg-blue-700"}`}
+            className={`w-full h-11 transition-all shadow-md active:scale-[0.98] ${
+              isSignup
+                ? "bg-teal-600 hover:bg-teal-700"
+                : "bg-blue-600 hover:bg-blue-700"
+            }`}
             disabled={isLoading}
           >
             {isLoading ? (
@@ -206,8 +223,11 @@ const LoginForm = () => {
         {/* Toggle between Login and Signup */}
         <div className="mt-6 text-center">
           <button
-            onClick={() => setIsSignup(!isSignup)}
-            className="text-sm text-slate-600 hover:text-blue-600 font-medium"
+            onClick={() => {
+              setIsSignup(!isSignup);
+              setError(""); // Clear errors when switching
+            }}
+            className="text-sm text-slate-600 hover:text-blue-600 font-medium transition-colors"
           >
             {isSignup
               ? "Already have an account? Sign In"

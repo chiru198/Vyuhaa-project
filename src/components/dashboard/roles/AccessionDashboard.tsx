@@ -13,6 +13,7 @@ import {
   Badge,
   Activity,
   Hospital,
+  ImageIcon,
 } from "lucide-react";
 import StatsCards from "../StatsCards";
 import { useToast } from "@/hooks/use-toast";
@@ -60,6 +61,8 @@ const AccessionDashboard = ({
   const [doctorName, setDoctorName] = useState("");
   const [hospitalName, setHospitalName] = useState("");
   const [clinicalHistory, setClinicalHistory] = useState("");
+  const [image1, setImage1] = useState<string | null>(null);
+  const [image2, setImage2] = useState<string | null>(null);
   // Fetch only patients who don't have a barcode assigned yet
   // const fetchPendingPatients = async () => {
   //   setFetchingPatients(true);
@@ -89,10 +92,22 @@ const AccessionDashboard = ({
 
     loadInitialData();
   }, []); // Empty brackets means "Run once on page load"
+
+  const handleImageUpload = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setter: (val: string) => void,
+  ) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setter(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
   const handleCreateSample = async () => {
     const loggedInUserUuid = localStorage.getItem("user_id");
 
-    // ✅ Added the 3 new fields to the payload
+    // 1. Prepare the payload including the Base64 image strings
     const payload = {
       barcode: barcode,
       patient_name: manualPatientName,
@@ -101,13 +116,17 @@ const AccessionDashboard = ({
       lab_id: labId,
       sample_type: sampleType,
       accession_id: loggedInUserUuid,
-      doctor_name: doctorName, // Added
-      hospital_name: hospitalName, // Added
-      clinical_history: clinicalHistory, // Added
+      doctor_name: doctorName,
+      hospital_name: hospitalName,
+      clinical_history: clinicalHistory,
       status: "received",
+      // ✅ CRITICAL: Add the images here
+      image1: image1,
+      image2: image2,
     };
 
     try {
+      // 2. Use your EC2 IP if working remotely, or localhost for local testing
       const response = await fetch(
         "http://localhost:5000/api/accession/add-sample",
         {
@@ -118,25 +137,29 @@ const AccessionDashboard = ({
       );
 
       if (response.ok) {
-        alert("Sample successfully moved to Technician Queue");
+        alert("Sample and Images successfully uploaded to server!");
 
-        //  Clear all states including the new ones
+        // 3. Clear all states including the images
         setManualPatientName("");
         setBarcode("");
         setLabId("");
         setSelectedLabName("");
         setAge("");
         setGender("");
-        setDoctorName(""); // Clear new field
-        setHospitalName(""); // Clear new field
-        setClinicalHistory(""); // Clear new field
+        setDoctorName("");
+        setHospitalName("");
+        setClinicalHistory("");
+        setImage1(null); // Clear image 1 preview
+        setImage2(null); // Clear image 2 preview
       } else {
         const errorData = await response.json();
-        alert("Error: " + errorData.details);
+        alert("Error: " + (errorData.details || "Upload failed"));
       }
     } catch (error) {
       console.error("Network Error:", error);
-      alert("Failed to connect to the server.");
+      alert(
+        "Failed to connect to the server. Check if the backend is running.",
+      );
     }
   };
   // --- THE FIX IS HERE ---
@@ -262,7 +285,7 @@ const AccessionDashboard = ({
       );
     case "add-sample":
       return (
-        <div className="max-w-3xl mx-auto py-8 animate-in fade-in duration-500">
+        <div className="max-w-4xl mx-auto py-8 animate-in fade-in duration-500">
           {/* Header Area */}
           <div className="flex items-center justify-between mb-8 border-b pb-6">
             <div>
@@ -270,7 +293,8 @@ const AccessionDashboard = ({
                 Lab Accession
               </h2>
               <p className="text-slate-500 mt-1">
-                Register new samples directly into the laboratory queue.
+                Register new samples with digital cytology images for the
+                technician queue.
               </p>
             </div>
             <div className="h-12 w-12 bg-blue-100 rounded-xl flex items-center justify-center">
@@ -281,7 +305,13 @@ const AccessionDashboard = ({
           <Card className="border-none shadow-2xl ring-1 ring-slate-200">
             <CardContent className="p-10">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                {/* --- PRIMARY PATIENT DATA --- */}
+                {/* --- SECTION 1: PRIMARY PATIENT DATA --- */}
+                <div className="col-span-full">
+                  <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4">
+                    Patient Identification
+                  </p>
+                </div>
+
                 <div className="space-y-2">
                   <Label className="text-sm font-bold text-slate-700">
                     Patient Full Name
@@ -304,7 +334,7 @@ const AccessionDashboard = ({
                   <div className="relative">
                     <Barcode className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                     <input
-                      placeholder="e.g. SMP0061"
+                      placeholder="e.g. VMD00225"
                       value={barcode}
                       onChange={(e) => setBarcode(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg font-mono focus:ring-2 focus:ring-blue-500 outline-none"
@@ -318,7 +348,7 @@ const AccessionDashboard = ({
                   </Label>
                   <input
                     type="number"
-                    placeholder="e.g. 45"
+                    placeholder="Years"
                     value={age}
                     onChange={(e) => setAge(e.target.value)}
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
@@ -332,7 +362,7 @@ const AccessionDashboard = ({
                   <select
                     value={gender}
                     onChange={(e) => setGender(e.target.value)}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                   >
                     <option value="">Select Gender...</option>
                     <option value="Female">Female</option>
@@ -341,10 +371,90 @@ const AccessionDashboard = ({
                   </select>
                 </div>
 
-                {/* --- MEDICAL CONTEXT (NEW FIELDS) --- */}
+                {/* --- SECTION 2: DIGITAL IMAGES (SIDE BY SIDE) --- */}
                 <div className="col-span-full pt-4 mt-2 border-t border-slate-100">
                   <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4">
-                    Medical Context
+                    Digital Cytology Images (Microscopic View)
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Image 1 Upload */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase">
+                        Image Slot 01
+                      </Label>
+                      <div
+                        className={`border-2 border-dashed rounded-xl p-4 text-center transition-all ${image1 ? "border-blue-500 bg-blue-50" : "border-slate-200 bg-slate-50"}`}
+                      >
+                        {image1 ? (
+                          <div className="relative group">
+                            <img
+                              src={image1}
+                              className="h-32 w-full object-cover rounded-lg border shadow-sm"
+                              alt="Preview 1"
+                            />
+                            <button
+                              onClick={() => setImage1(null)}
+                              className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="py-4">
+                            <ImageIcon className="mx-auto h-8 w-8 text-slate-300 mb-2" />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleImageUpload(e, setImage1)}
+                              className="text-[10px] block w-full text-slate-500 file:mr-4 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:bg-blue-50 file:text-blue-700"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Image 2 Upload */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase">
+                        Image Slot 02
+                      </Label>
+                      <div
+                        className={`border-2 border-dashed rounded-xl p-4 text-center transition-all ${image2 ? "border-blue-500 bg-blue-50" : "border-slate-200 bg-slate-50"}`}
+                      >
+                        {image2 ? (
+                          <div className="relative group">
+                            <img
+                              src={image2}
+                              className="h-32 w-full object-cover rounded-lg border shadow-sm"
+                              alt="Preview 2"
+                            />
+                            <button
+                              onClick={() => setImage2(null)}
+                              className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="py-4">
+                            <ImageIcon className="mx-auto h-8 w-8 text-slate-300 mb-2" />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleImageUpload(e, setImage2)}
+                              className="text-[10px] block w-full text-slate-500 file:mr-4 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:bg-blue-50 file:text-blue-700"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* --- SECTION 3: MEDICAL CONTEXT --- */}
+                <div className="col-span-full pt-4 mt-2 border-t border-slate-100">
+                  <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4">
+                    Clinical Context
                   </p>
                 </div>
 
@@ -370,7 +480,7 @@ const AccessionDashboard = ({
                   <div className="relative">
                     <Hospital className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                     <input
-                      placeholder="Hospital Name"
+                      placeholder="Sudha Hospital"
                       value={hospitalName}
                       onChange={(e) => setHospitalName(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
@@ -383,17 +493,17 @@ const AccessionDashboard = ({
                     Clinical History / Symptoms
                   </Label>
                   <textarea
-                    placeholder="Enter patient clinical history or relevant symptoms..."
+                    placeholder="e.g. Perimenopausal, P2 L2, Abnormal Bleeding..."
                     value={clinicalHistory}
                     onChange={(e) => setClinicalHistory(e.target.value)}
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px] transition-all"
                   />
                 </div>
 
-                {/* --- LOGISTICS --- */}
+                {/* --- SECTION 4: LOGISTICS --- */}
                 <div className="col-span-full pt-4 mt-2 border-t border-slate-100">
                   <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4">
-                    Logistics
+                    Logistics & Test Routing
                   </p>
                 </div>
 
@@ -430,14 +540,14 @@ const AccessionDashboard = ({
                     onChange={(e) => setSampleType(e.target.value)}
                   >
                     <option value="">Select Test...</option>
-                    <option value="CO-TEST">CO-TEST</option>
-                    <option value="LBC">LBC</option>
-                    <option value="HPV">HPV</option>
+                    <option value="LBC">LBC (Liquid Based Cytology)</option>
+                    <option value="HPV">HPV Testing</option>
+                    <option value="CO-TEST">CO-TEST (LBC + HPV)</option>
                   </select>
                 </div>
               </div>
 
-              {/* Action Button */}
+              {/* Submission Action */}
               <div className="mt-12">
                 <Button
                   onClick={handleCreateSample}
@@ -447,21 +557,21 @@ const AccessionDashboard = ({
                     !labId ||
                     !sampleType ||
                     !doctorName ||
-                    !hospitalName
+                    !hospitalName ||
+                    (!image1 && !image2) // Require at least one image
                   }
                   className="w-full py-7 text-lg font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xl transition-transform active:scale-95 disabled:bg-slate-300"
                 >
                   <PlusCircle className="mr-2 h-6 w-6" /> Complete Accession
                 </Button>
                 <p className="text-center text-slate-400 text-[11px] mt-4 uppercase tracking-widest font-semibold">
-                  Pushes data to Technician Imaging Queue
+                  Pushes data to Technician Imaging Queue & Patient Database
                 </p>
               </div>
             </CardContent>
           </Card>
         </div>
       );
-
     case "sample-queue":
       return (
         <div className="p-6 space-y-6">

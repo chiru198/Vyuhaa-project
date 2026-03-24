@@ -364,22 +364,33 @@ app.post("/api/report/preview", (req, res) => {
   generateLBCReport(req.body, res);
 });
 app.post("/api/report/finalize", (req, res) => {
-  const finalDir = path.join(__dirname, "final_reports");
-  if (!fs.existsSync(finalDir)) fs.mkdirSync(finalDir);
-
-  const filePath = path.join(finalDir, `${req.body.mr_number}.pdf`);
-  const stream = fs.createWriteStream(filePath);
-
-  generateLBCReport(req.body, stream);
-
-  stream.on("finish", () => {
-    res.json({ success: true, message: "Report saved permanently." });
-  });
+  const { barcode, mr_number } = req.body;
+  // 1. Sanitize the filename (replace slashes or special chars with dashes)
+  // We prefer barcode, but fall back to mr_number if barcode is missing
+  const fileName = `${(barcode || mr_number || "report").replace(/[/\\?%*:|"<>]/g, "-")}.pdf`;
+  // 2. Set the Headers to tell the browser to download the file
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  // 3. Generate the report and pipe it directly to 'res' (the browser)
+  // Instead of passing 'stream' (the file), we pass 'res' (the web response)
+  try {
+    generateLBCReport(req.body, res);
+    // Note: If generateLBCReport handles doc.end(), you don't need to do anything else.
+    // If it doesn't, ensure doc.end() is called within that function.
+  } catch (error) {
+    console.error("PDF Generation Error:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: "Failed to generate PDF." });
+    }
+  }
 });
 // Pathology ends here
-
-//accession starts here
-//FOR PUTTING PATIENTS DATA INTO SAMPLES
+// ACCESSION START HERE  
+//FOR ADDING SAMPLE FROM THE CUSTOMER PORTAL. 
+// THIS ENDPOINT ACCEPTS THE SAMPLE DETAILS ALONG WITH TWO IMAGES IN BASE64 FORMAT, 
+// STORES THE IMAGES ON THE SERVER, AND THEN SAVES THE SAMPLE INFORMATION IN THE DATABASE
+//  INCLUDING THE PATHS TO THE STORED IMAGES. THIS IS USED WHEN A CUSTOMER SUBMITS A NEW SAMPLE 
+// THROUGH THE FRONTEND.
 app.post("/api/accession/add-sample", async (req, res) => {
   const {
     barcode,
@@ -389,46 +400,63 @@ app.post("/api/accession/add-sample", async (req, res) => {
     lab_id,
     sample_type,
     accession_id,
-    // ✅ NEW FIELDS FROM FRONTEND
     doctor_name,
     hospital_name,
     clinical_history,
+    image1, // ✅ Base64 string from frontend
+    image2  // ✅ Base64 string from frontend
   } = req.body;
-
+  console.log("image is coming in backend", image1 ? "Yes" : "No", image2 ? "Yes" : "No");
   const client = await pool.connect();
 
   try {
+    // --- 1. PHYSICAL IMAGE STORAGE LOGIC ---
+    const uploadDir = path.join(__dirname, 'uploads');
+    
+    // Ensure the folder exists on your local machine or EC2
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const saveImage = (base64Data, suffix) => {
+      if (!base64Data) return null;
+      
+      // Remove the "data:image/png;base64," header
+      const base64Image = base64Data.split(';base64,').pop();
+      
+      // Create a unique filename (Barcode + Suffix + Timestamp)
+      const fileName = `${barcode}_${suffix}_${Date.now()}.png`;
+      const filePath = path.join(uploadDir, fileName);
+
+      // Write the physical file to the disk
+      fs.writeFileSync(filePath, base64Image, { encoding: 'base64' });
+      
+      // Return the relative path to be stored in the DB
+      return `/uploads/${fileName}`;
+    };
+
+    const image1Path = saveImage(image1, 'img1');
+    const image2Path = saveImage(image2, 'img2');
+
+    // --- 2. DATABASE TRANSACTION ---
     await client.query("BEGIN");
 
     // STEP 1: Insert into patients
-    const patientQuery = `
-      INSERT INTO patients (name, age, gender, customer_id) 
-      VALUES ($1, $2, $3, $4) 
-      RETURNING id;
-    `;
-    const patientRes = await client.query(patientQuery, [
-      patient_name,
-      age || null,
-      gender || null,
-      accession_id,
-    ]);
+    const patientRes = await client.query(
+      `INSERT INTO patients (name, age, gender, customer_id) 
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [patient_name, age || null, gender || null, accession_id]
+    );
     const newPatientId = patientRes.rows[0].id;
 
-    // STEP 2: Insert into samples (Updated with 3 new columns)
+    // STEP 2: Insert into samples (Include image paths)
     const sampleQuery = `
       INSERT INTO samples (
-        barcode, 
-        patient_id, 
-        customer_id, 
-        lab_id, 
-        sample_type, 
-        status, 
-        collected_at,
-        doctor_name,
-        hospital_name,
-        clinical_history
+        barcode, patient_id, customer_id, lab_id, sample_type, 
+        status, collected_at, doctor_name, hospital_name, 
+        clinical_history, image1_path, image2_path
       )
-      VALUES ($1, $2, $3, $4, $5, 'received', NOW(), $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, 'received', NOW(), $6, $7, $8, $9, $10)
       RETURNING *;
     `;
 
@@ -438,13 +466,16 @@ app.post("/api/accession/add-sample", async (req, res) => {
       accession_id,
       lab_id,
       sample_type,
-      doctor_name || null, // $6
-      hospital_name || null, // $7
-      clinical_history || null, // $8
+      doctor_name || null,
+      hospital_name || null,
+      clinical_history || null,
+      image1Path, // $9 (e.g., "/uploads/VMD001_img1_171000.png")
+      image2Path  // $10
     ]);
 
     await client.query("COMMIT");
-    res.status(201).json({ message: "Success", sample: sampleRes.rows[0] });
+    res.status(201).json({ success: true, sample: sampleRes.rows[0] });
+
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("DATABASE ERROR:", err.message);
@@ -692,17 +723,18 @@ app.get("/api/samples", async (req, res) => {
   try {
     const { customerId } = req.query;
 
-    // Added s.doctor_name, s.hospital_name, and s.collected_at to the SELECT
     let queryText = `
       SELECT 
         s.id, 
         s.barcode,
         s.sample_type,
         s.status,
-        s.doctor_name,    -- 🟢 Added
-        s.hospital_name,  -- 🟢 Added
-        s.collected_at,   -- 🟢 Added (Required for the date logic)
-        s.clinical_history, -- 🟢 Added (Required for the report details page)
+        s.doctor_name,
+        s.hospital_name,
+        s.collected_at,
+        s.clinical_history,
+        s.image1_path,
+        s.image2_path,  
         p.name AS patient_name, 
         p.age,
         p.gender,
@@ -714,8 +746,9 @@ app.get("/api/samples", async (req, res) => {
 
     const queryParams = [];
 
+    // Note: Usually customerId refers to the logged-in user's ID (the person who added the sample)
     if (customerId) {
-      queryText += ` WHERE s.patient_id = $1`;
+      queryText += ` WHERE s.customer_id = $1`; // Changed from patient_id to customer_id if that's your logic
       queryParams.push(customerId);
     }
 
