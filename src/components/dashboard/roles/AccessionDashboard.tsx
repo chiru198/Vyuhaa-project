@@ -60,9 +60,13 @@ const AccessionDashboard = ({
   const [gender, setGender] = useState("");
   const [doctorName, setDoctorName] = useState("");
   const [hospitalName, setHospitalName] = useState("");
+  const [day, setDay] = useState("");
+  const [month, setMonth] = useState("");
+  const [year, setYear] = useState(new Date().getFullYear().toString());
   const [clinicalHistory, setClinicalHistory] = useState("");
   const [image1, setImage1] = useState<string | null>(null);
   const [image2, setImage2] = useState<string | null>(null);
+
   // Fetch only patients who don't have a barcode assigned yet
   // const fetchPendingPatients = async () => {
   //   setFetchingPatients(true);
@@ -106,6 +110,7 @@ const AccessionDashboard = ({
   };
   const handleCreateSample = async () => {
     const loggedInUserUuid = localStorage.getItem("user_id");
+    const formattedCollectionDate = `${year}-${month}-${day}`;
 
     // 1. Prepare the payload including the Base64 image strings
     const payload = {
@@ -123,6 +128,7 @@ const AccessionDashboard = ({
       // ✅ CRITICAL: Add the images here
       image1: image1,
       image2: image2,
+      collected_at: formattedCollectionDate,
     };
 
     try {
@@ -487,6 +493,73 @@ const AccessionDashboard = ({
                     />
                   </div>
                 </div>
+                <div className="col-span-full space-y-2">
+                  <Label className="text-sm font-bold text-slate-700">
+                    Collection Date
+                  </Label>
+                  <div className="grid grid-cols-3 gap-4">
+                    {/* Day Select */}
+                    <select
+                      value={day}
+                      onChange={(e) => setDay(e.target.value)}
+                      className="p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      <option value="">Day</option>
+                      {Array.from({ length: 31 }, (_, i) => (
+                        <option
+                          key={i + 1}
+                          value={String(i + 1).padStart(2, "0")}
+                        >
+                          {i + 1}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Month Select */}
+                    <select
+                      value={month}
+                      onChange={(e) => setMonth(e.target.value)}
+                      className="p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      <option value="">Month</option>
+                      {[
+                        "Jan",
+                        "Feb",
+                        "Mar",
+                        "Apr",
+                        "May",
+                        "Jun",
+                        "Jul",
+                        "Aug",
+                        "Sep",
+                        "Oct",
+                        "Nov",
+                        "Dec",
+                      ].map((m, i) => (
+                        <option key={m} value={String(i + 1).padStart(2, "0")}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Year Select */}
+                    <select
+                      value={year}
+                      onChange={(e) => setYear(e.target.value)}
+                      className="p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      <option value="">Year</option>
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const y = new Date().getFullYear() - i;
+                        return (
+                          <option key={y} value={y}>
+                            {y}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                </div>
 
                 <div className="col-span-full space-y-2">
                   <Label className="text-sm font-bold text-slate-700">
@@ -554,6 +627,9 @@ const AccessionDashboard = ({
                   disabled={
                     !manualPatientName ||
                     !barcode ||
+                    !day ||
+                    !month ||
+                    !year ||
                     !labId ||
                     !sampleType ||
                     !doctorName ||
