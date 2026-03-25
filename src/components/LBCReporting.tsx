@@ -54,6 +54,19 @@ const LBCReporting = ({ selectedSample, onBack }) => {
     }
   }, [selectedSample]);
 
+  // --- SQUAMOUS FULL FORMS ---
+  const squamousFullForms: Record<string, string> = {
+    "ASC-US": "ASC-US (Atypical Squamous Cells of Undetermined Significance)",
+    "ASC-H": "ASC-H (Atypical Squamous Cells, cannot exclude HSIL)",
+    "LSIL": "LSIL (Low-grade Squamous Intraepithelial Lesion)",
+    "HSIL": "HSIL (High-grade Squamous Intraepithelial Lesion)",
+    "LSIL-H": "LSIL-H (Low-grade SIL, cannot exclude High-grade)",
+    "SCC": "SCC (Squamous Cell Carcinoma)",
+  };
+
+  const expandSquamousResult = (results: string[]) =>
+    results.map((r) => squamousFullForms[r] ?? r).join(", ");
+
   // --- HELPERS ---
   const toggleMultiSelect = (currentItems, setFunction, item) => {
     if (currentItems.includes(item)) {
@@ -68,9 +81,9 @@ const LBCReporting = ({ selectedSample, onBack }) => {
   // --- PREVIEW LOGIC ---
   const getReportSections = () => {
     return [
-      { label: "SPECIMEN ADEQUACi", value: specimenAdequacyText },
+      { label: "SPECIMEN ADEQUACY", value: specimenAdequacyText },
       {
-        label: "CLiNICALii IMPRESSION",
+        label: "CLINICAL IMPRESSION",
         value: selectedResults.includes(
           "NILM ( Negative for Intraepithelial Lesion or Malignancy )",
         )
@@ -141,7 +154,9 @@ const LBCReporting = ({ selectedSample, onBack }) => {
       microscopy_list: microscopyList,
       result: selectedResults.includes("NILM")
         ? "NILM(Negative for Intraepithelial Lesion or Malignancy)"
-        : `${impressionCategory}: ${[...selectedResults, ...glandularResults].join(", ")}`,
+        : impressionCategory === "Squamous"
+          ? `Squamous: ${expandSquamousResult(selectedResults)}`
+          : `${impressionCategory}: ${glandularResults.join(", ")}`,
       recommendations_list:
         showFollowUp && selectedFollowUps.length > 0
           ? selectedFollowUps
