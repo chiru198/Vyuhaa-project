@@ -24,11 +24,15 @@ const TopBar = ({ user, onLogout }: TopBarProps) => {
           <Button variant="ghost" size="icon">
             <Bell className="h-5 w-5" />
           </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={onLogout}
-            className="flex items-center space-x-2"
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (window.confirm("Are you sure you want to logout?")) {
+                onLogout();
+              }
+            }}
+            className="flex items-center space-x-2 text-red-600 hover:text-red-700 hover:bg-red-50"
           >
             <LogOut className="h-4 w-4" />
             <span>Logout</span>

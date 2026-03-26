@@ -211,17 +211,18 @@ const LBCReporting = ({ selectedSample, onBack }) => {
     }
   };
 
-  const ActionButton = ({ label, active, onClick, color = "blue" }) => (
+  const ActionButton = ({ label, active, onClick, color: _color = "blue" }) => (
     <Button
       variant="outline"
       size="sm"
       onClick={onClick}
-      className={`rounded-full h-8 px-4 text-[10px] font-bold transition-all ${
+      className={`rounded-full h-8 px-4 text-[10px] font-bold transition-all border ${
         active
-          ? `bg-${color}-600 text-white border-${color}-600`
-          : "bg-white text-slate-600 border-slate-200"
+          ? "bg-blue-600 text-white border-blue-700 shadow-md ring-2 ring-blue-300"
+          : "bg-white text-slate-600 border-slate-200 hover:border-blue-400 hover:text-blue-600"
       }`}
     >
+      {active && <span className="mr-1 text-[10px]">✓</span>}
       {label}
     </Button>
   );
@@ -397,7 +398,7 @@ const LBCReporting = ({ selectedSample, onBack }) => {
                     2. Glandular Cells (Endocervical)
                   </Label>
                   <div className="flex gap-2">
-                    {["Numerous", "Occasional", "Absent"].map((opt) => (
+                    {["Present", "Numerous", "Occasional", "Absent"].map((opt) => (
                       <ActionButton
                         key={opt}
                         label={opt}

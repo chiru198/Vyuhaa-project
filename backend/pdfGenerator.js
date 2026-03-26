@@ -205,14 +205,14 @@ export const generateLBCReport = (data, stream) => {
   const followUps = Array.isArray(data.recommendations_list)
     ? data.recommendations_list
     : ["Routine screening."];
-  followUps.forEach((item) => {
-    doc
-      .fillColor("black")
-      .font("Helvetica")
-      .fontSize(8.5)
-      .text(`• ${item}`, margin + 15, currentY);
-    currentY = doc.y + 4;
-  });
+  doc
+    .fillColor("black")
+    .font("Helvetica")
+    .fontSize(8.5)
+    .text(`• ${followUps.join(", ")}`, margin + 15, currentY, {
+      width: contentWidth - 40,
+    });
+  currentY = doc.y + 4;
 
   // --- 4. DIGITAL IMAGES ---
   currentY += 15;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppUser } from "../../hooks/useAuth"; // ✅ correct user type
 import Sidebar from "./Sidebar";
 import AdminDashboard from "./roles/AdminDashboard";
@@ -20,7 +20,27 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
   const [currentView, setCurrentView] = useState("dashboard");
   const { samples, loading } = useSamples();
 
-  const [isCollapsed, setIsCollapsed] = useState(false); // <--- ADD THIS LINE
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Push a history entry whenever the view changes
+  const navigateTo = (view: string) => {
+    window.history.pushState({ view }, "", window.location.pathname);
+    setCurrentView(view);
+  };
+
+  // Handle browser back/forward button
+  useEffect(() => {
+    // Set the initial history entry
+    window.history.replaceState({ view: "dashboard" }, "", window.location.pathname);
+
+    const handlePopState = (event: PopStateEvent) => {
+      const view = event.state?.view ?? "dashboard";
+      setCurrentView(view);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   // Show loading if user is null (safety fallback)
   if (!user) {
@@ -43,24 +63,22 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
         return (
           <AccessionDashboard
             currentView={currentView}
-            setCurrentView={setCurrentView}
+            setCurrentView={navigateTo}
           />
         );
       case "technician":
-        // Pass the real setCurrentView here
         return (
           <TechnicianDashboard
             currentView={currentView}
-            setCurrentView={setCurrentView}
+            setCurrentView={navigateTo}
           />
         );
 
       case "pathologist":
-        //Pass the real setCurrentView here
         return (
           <PathologistDashboard
             currentView={currentView}
-            setCurrentView={setCurrentView}
+            setCurrentView={navigateTo}
           />
         );
 
@@ -79,7 +97,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
         <Sidebar
           user={user}
           currentView={currentView}
-          setCurrentView={setCurrentView}
+          setCurrentView={navigateTo}
         />
 
         {/* SidebarInset must take all remaining horizontal space */}

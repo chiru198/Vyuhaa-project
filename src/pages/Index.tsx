@@ -12,7 +12,7 @@ const Index = () => {
   // ❗ NOT LOGGED IN → SHOW LOGIN PAGE
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen">
         <LoginForm />
       </div>
     );
