@@ -20,6 +20,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useSamples } from "../../../hooks/useSamples";
 import { useLabs } from "@/hooks/useLabs";
 import { Label } from "@/components/ui/label";
+import HPVAccessionForm from "./HPVAccessionform";
+import LBCAccessionForm from "./LBCAccessionform";
 
 interface AccessionDashboardProps {
   currentView: string;
@@ -276,8 +278,7 @@ const AccessionDashboard = ({
           {/* 3. Primary Navigation Action */}
           <div className="flex flex-col items-center py-20 bg-slate-50/50 rounded-[40px] border border-dashed border-slate-200">
             <Button
-              // Navigates to the manual entry form
-              onClick={() => setCurrentView("add-sample")}
+              onClick={() => setCurrentView("select-sample-type")}
               className="group bg-blue-600 hover:bg-blue-700 text-white font-bold py-8 px-20 rounded-2xl shadow-xl shadow-blue-100 transition-all hover:scale-[1.02] active:scale-95 flex items-center gap-4 text-2xl"
             >
               <PlusCircle className="h-7 w-7 transition-transform group-hover:rotate-90" />
@@ -289,365 +290,113 @@ const AccessionDashboard = ({
           </div>
         </div>
       );
-    case "add-sample":
+    case "select-sample-type":
+      return (
+        <div className="max-w-3xl mx-auto py-12 animate-in fade-in duration-500">
+          <div className="flex items-center justify-between mb-10 border-b pb-6">
+            <div>
+              <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                Select Sample Type
+              </h2>
+              <p className="text-slate-500 mt-1">
+                Choose the type of test to register a new sample.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setCurrentView("dashboard")}
+              className="text-slate-500"
+            >
+              ← Back
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* LBC Option */}
+            <div
+              onClick={() => setCurrentView("add-sample")}
+              className="cursor-pointer group border-2 border-blue-200 hover:border-blue-500 bg-white hover:bg-blue-50 rounded-2xl p-8 flex flex-col items-center gap-4 shadow-md transition-all hover:scale-[1.03]"
+            >
+              <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center group-hover:bg-blue-200 transition-all">
+                <Beaker className="h-8 w-8 text-blue-600" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800">LBC</h3>
+              <p className="text-slate-500 text-sm text-center">
+                Liquid Based Cytology test for cervical cancer screening.
+              </p>
+              <span className="mt-2 text-blue-600 font-semibold text-sm group-hover:underline">
+                Select →
+              </span>
+            </div>
+
+            {/* HPV Option */}
+            <div
+              onClick={() => setCurrentView("add-sample-hpv")}
+              className="cursor-pointer group border-2 border-purple-200 hover:border-purple-500 bg-white hover:bg-purple-50 rounded-2xl p-8 flex flex-col items-center gap-4 shadow-md transition-all hover:scale-[1.03]"
+            >
+              <div className="h-16 w-16 bg-purple-100 rounded-full flex items-center justify-center group-hover:bg-purple-200 transition-all">
+                <Activity className="h-8 w-8 text-purple-600" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800">HPV</h3>
+              <p className="text-slate-500 text-sm text-center">
+                Human Papillomavirus test for high-risk HPV detection.
+              </p>
+              <span className="mt-2 text-purple-600 font-semibold text-sm group-hover:underline">
+                Select →
+              </span>
+            </div>
+
+            {/* Co-Test Option */}
+            <div
+              onClick={() => setCurrentView("add-sample-cotest")}
+              className="cursor-pointer group border-2 border-emerald-200 hover:border-emerald-500 bg-white hover:bg-emerald-50 rounded-2xl p-8 flex flex-col items-center gap-4 shadow-md transition-all hover:scale-[1.03]"
+            >
+              <div className="h-16 w-16 bg-emerald-100 rounded-full flex items-center justify-center group-hover:bg-emerald-200 transition-all">
+                <ClipboardList className="h-8 w-8 text-emerald-600" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800">Co-Test</h3>
+              <p className="text-slate-500 text-sm text-center">
+                Combined LBC + HPV co-testing for comprehensive screening.
+              </p>
+              <span className="mt-2 text-emerald-600 font-semibold text-sm group-hover:underline">
+                Select →
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+
+    case "add-sample-hpv":
+      return <HPVAccessionForm setCurrentView={setCurrentView} />;
+
+    case "add-sample-cotest":
       return (
         <div className="max-w-4xl mx-auto py-8 animate-in fade-in duration-500">
-          {/* Header Area */}
           <div className="flex items-center justify-between mb-8 border-b pb-6">
             <div>
               <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                Lab Accession
+                Co-Test Accession
               </h2>
               <p className="text-slate-500 mt-1">
-                Register new samples with digital cytology images for the
-                technician queue.
+                Co-Test form — coming soon.
               </p>
             </div>
-            <div className="h-12 w-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <ClipboardList className="h-6 w-6 text-blue-600" />
-            </div>
+            <Button
+              variant="outline"
+              onClick={() => setCurrentView("select-sample-type")}
+              className="text-slate-500"
+            >
+              ← Back
+            </Button>
           </div>
-
-          <Card className="border-none shadow-2xl ring-1 ring-slate-200">
-            <CardContent className="p-10">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                {/* --- SECTION 1: PRIMARY PATIENT DATA --- */}
-                <div className="col-span-full">
-                  <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4">
-                    Patient Identification
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-slate-700">
-                    Patient Full Name
-                  </Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                    <input
-                      placeholder="Enter Name"
-                      value={manualPatientName}
-                      onChange={(e) => setManualPatientName(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-slate-700">
-                    Barcode / Sample ID
-                  </Label>
-                  <div className="relative">
-                    <Barcode className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                    <input
-                      placeholder="e.g. VMD00225"
-                      value={barcode}
-                      onChange={(e) => setBarcode(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg font-mono focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-slate-700">
-                    Age
-                  </Label>
-                  <input
-                    type="number"
-                    placeholder="Years"
-                    value={age}
-                    onChange={(e) => setAge(e.target.value)}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-slate-700">
-                    Gender
-                  </Label>
-                  <select
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value="">Select Gender...</option>
-                    <option value="Female">Female</option>
-                    <option value="Male">Male</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-
-                {/* --- SECTION 2: DIGITAL IMAGES (SIDE BY SIDE) --- */}
-                <div className="col-span-full pt-4 mt-2 border-t border-slate-100">
-                  <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4">
-                    Digital Cytology Images (Microscopic View)
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Image 1 Upload */}
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-500 uppercase">
-                        Image Slot 01
-                      </Label>
-                      <div
-                        className={`border-2 border-dashed rounded-xl p-4 text-center transition-all ${image1 ? "border-blue-500 bg-blue-50" : "border-slate-200 bg-slate-50"}`}
-                      >
-                        {image1 ? (
-                          <div className="relative group">
-                            <img
-                              src={image1}
-                              className="h-32 w-full object-cover rounded-lg border shadow-sm"
-                              alt="Preview 1"
-                            />
-                            <button
-                              onClick={() => setImage1(null)}
-                              className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="py-4">
-                            <ImageIcon className="mx-auto h-8 w-8 text-slate-300 mb-2" />
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => handleImageUpload(e, setImage1)}
-                              className="text-[10px] block w-full text-slate-500 file:mr-4 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:bg-blue-50 file:text-blue-700"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Image 2 Upload */}
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-500 uppercase">
-                        Image Slot 02
-                      </Label>
-                      <div
-                        className={`border-2 border-dashed rounded-xl p-4 text-center transition-all ${image2 ? "border-blue-500 bg-blue-50" : "border-slate-200 bg-slate-50"}`}
-                      >
-                        {image2 ? (
-                          <div className="relative group">
-                            <img
-                              src={image2}
-                              className="h-32 w-full object-cover rounded-lg border shadow-sm"
-                              alt="Preview 2"
-                            />
-                            <button
-                              onClick={() => setImage2(null)}
-                              className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="py-4">
-                            <ImageIcon className="mx-auto h-8 w-8 text-slate-300 mb-2" />
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => handleImageUpload(e, setImage2)}
-                              className="text-[10px] block w-full text-slate-500 file:mr-4 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:bg-blue-50 file:text-blue-700"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* --- SECTION 3: MEDICAL CONTEXT --- */}
-                <div className="col-span-full pt-4 mt-2 border-t border-slate-100">
-                  <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4">
-                    Clinical Context
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-slate-700">
-                    Referring Doctor
-                  </Label>
-                  <div className="relative">
-                    <Stethoscope className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                    <input
-                      placeholder="Dr. Name"
-                      value={doctorName}
-                      onChange={(e) => setDoctorName(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-slate-700">
-                    Hospital / Clinic
-                  </Label>
-                  <div className="relative">
-                    <Hospital className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                    <input
-                      placeholder="Sudha Hospital"
-                      value={hospitalName}
-                      onChange={(e) => setHospitalName(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                </div>
-                <div className="col-span-full space-y-2">
-                  <Label className="text-sm font-bold text-slate-700">
-                    Collection Date
-                  </Label>
-                  <div className="grid grid-cols-3 gap-4">
-                    {/* Day Select */}
-                    <select
-                      value={day}
-                      onChange={(e) => setDay(e.target.value)}
-                      className="p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    >
-                      <option value="">Day</option>
-                      {Array.from({ length: 31 }, (_, i) => (
-                        <option
-                          key={i + 1}
-                          value={String(i + 1).padStart(2, "0")}
-                        >
-                          {i + 1}
-                        </option>
-                      ))}
-                    </select>
-
-                    {/* Month Select */}
-                    <select
-                      value={month}
-                      onChange={(e) => setMonth(e.target.value)}
-                      className="p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    >
-                      <option value="">Month</option>
-                      {[
-                        "Jan",
-                        "Feb",
-                        "Mar",
-                        "Apr",
-                        "May",
-                        "Jun",
-                        "Jul",
-                        "Aug",
-                        "Sep",
-                        "Oct",
-                        "Nov",
-                        "Dec",
-                      ].map((m, i) => (
-                        <option key={m} value={String(i + 1).padStart(2, "0")}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-
-                    {/* Year Select */}
-                    <select
-                      value={year}
-                      onChange={(e) => setYear(e.target.value)}
-                      className="p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    >
-                      <option value="">Year</option>
-                      {Array.from({ length: 5 }, (_, i) => {
-                        const y = new Date().getFullYear() - i;
-                        return (
-                          <option key={y} value={y}>
-                            {y}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="col-span-full space-y-2">
-                  <Label className="text-sm font-bold text-slate-700">
-                    Clinical History / Symptoms
-                  </Label>
-                  <textarea
-                    placeholder="e.g. Perimenopausal, P2 L2, Abnormal Bleeding..."
-                    value={clinicalHistory}
-                    onChange={(e) => setClinicalHistory(e.target.value)}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px] transition-all"
-                  />
-                </div>
-
-                {/* --- SECTION 4: LOGISTICS --- */}
-                <div className="col-span-full pt-4 mt-2 border-t border-slate-100">
-                  <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4">
-                    Logistics & Test Routing
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-slate-700">
-                    Destination Lab
-                  </Label>
-                  <select
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    value={selectedLabName}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      setSelectedLabName(name);
-                      const foundLab = labs.find((l: any) => l.name === name);
-                      if (foundLab) setLabId(foundLab.id);
-                    }}
-                  >
-                    <option value="">Select Lab...</option>
-                    {labs.map((lab: any) => (
-                      <option key={lab.id} value={lab.name}>
-                        {lab.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-slate-700">
-                    Test Type
-                  </Label>
-                  <select
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    value={sampleType}
-                    onChange={(e) => setSampleType(e.target.value)}
-                  >
-                    <option value="">Select Test...</option>
-                    <option value="LBC">LBC (Liquid Based Cytology)</option>
-                    <option value="HPV">HPV Testing</option>
-                    <option value="CO-TEST">CO-TEST (LBC + HPV)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Submission Action */}
-              <div className="mt-12">
-                <Button
-                  onClick={handleCreateSample}
-                  disabled={
-                    !manualPatientName ||
-                    !barcode ||
-                    !day ||
-                    !month ||
-                    !year ||
-                    !labId ||
-                    !sampleType ||
-                    !doctorName ||
-                    !hospitalName ||
-                    (!image1 && !image2) // Require at least one image
-                  }
-                  className="w-full py-7 text-lg font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xl transition-transform active:scale-95 disabled:bg-slate-300"
-                >
-                  <PlusCircle className="mr-2 h-6 w-6" /> Complete Accession
-                </Button>
-                <p className="text-center text-slate-400 text-[11px] mt-4 uppercase tracking-widest font-semibold">
-                  Pushes data to Technician Imaging Queue & Patient Database
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="flex items-center justify-center h-48 text-slate-400 text-lg font-medium border-2 border-dashed rounded-2xl">
+            Co-Test Form — Coming Soon
+          </div>
         </div>
       );
+
+    case "add-sample":
+      return <LBCAccessionForm setCurrentView={setCurrentView} />;
     case "sample-queue":
       return (
         <div className="p-6 space-y-6">

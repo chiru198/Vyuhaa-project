@@ -13,6 +13,7 @@ import { jsPDF } from "jspdf";
 import { companyLogo } from "./logo.js"; // This is your company logo in base64 format, imported from a separate file for cleaner code
 import multer from "multer";
 import { generateLBCReport } from "./pdfGenerator.js"; // <--- Import here
+import { generateHPVReport } from "./HPVPdfGenerator.js"; // <--- HPV Report
 
 // Create directory if it doesn't exist
 // const uploadDir = "uploads/pathology";
@@ -298,6 +299,27 @@ app.get("/api/pathologist/review-queue", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// --- DELETE SAMPLE ---
+app.delete("/api/samples/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Delete related test_results first (foreign key)
+    await pool.query("DELETE FROM test_results WHERE sample_id = $1", [id]);
+    // Then delete the sample
+    const result = await pool.query(
+      "DELETE FROM samples WHERE id = $1 RETURNING id",
+      [id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Sample not found" });
+    }
+    res.json({ message: "Sample deleted successfully" });
+  } catch (err) {
+    console.error("DELETE SAMPLE ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.put("/api/samples/:id/finalize", async (req, res) => {
   const { id } = req.params;
   const { assigned_pathologist } = req.body;
@@ -356,6 +378,27 @@ app.get("/api/pathologist/recent-activity", async (req, res) => {
 
 import fs from "fs";
 import path from "path";
+
+// --- HPV REPORT ROUTES ---
+app.post("/api/report/hpv/preview", (req, res) => {
+  res.setHeader("Content-Type", "application/pdf");
+  generateHPVReport(req.body, res);
+});
+
+app.post("/api/report/hpv/finalize", (req, res) => {
+  const { barcode, mr_number } = req.body;
+  const fileName = `HPV_${(barcode || mr_number || "report").replace(/[/\\?%*:|"<>]/g, "-")}.pdf`;
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  try {
+    generateHPVReport(req.body, res);
+  } catch (error) {
+    console.error("HPV PDF Generation Error:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to generate HPV report" });
+    }
+  }
+});
 
 //This post api endpoint is used for generating a PDF for preview purposes only. It accepts the same data as the finalize route but does not save anything to the database or filesystem. Instead, it generates the PDF in memory and sends it back to the frontend, where you can open it in a new tab for previewing before finalizing. This allows you to see exactly how the report will look with the real data before you commit to saving it.
 app.post("/api/report/preview", (req, res) => {

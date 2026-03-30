@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import LBCReporting from "@/components/LBCReporting";
+import HPVReporting from "@/components/HPVReporting";
 import {
   Loader2,
   FileCheck,
@@ -25,12 +26,25 @@ import {
   Search,
   Image,
   ImageIcon,
+  Trash2,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { usePathologistDashboard } from "../../../hooks/usePathologistDashboard";
 import { useReviewQueue } from "../../../hooks/useReviewQueue";
 import { useRecentActivity } from "../../../hooks/useRecentActivity";
 import { Input } from "@/components/ui/input";
+
 //
 interface PathologistDashboardProps {
   currentView: string;
@@ -44,7 +58,7 @@ const PathologistDashboard = ({
   // Inside PathologistDashboard component
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const { samples, loading: samplesLoading, error } = useSamples();
+  const { samples, loading: samplesLoading, error, refetch } = useSamples();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -93,6 +107,26 @@ const PathologistDashboard = ({
   //   const start = (currentPage - 1) * itemsPerPage;
   //   return pendingReviews.slice(start, start + itemsPerPage);
   // }, [pendingReviews, currentPage]);
+
+  const handleDeleteSample = async (sampleId: string) => {
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this sample? This action cannot be undone.",
+      )
+    )
+      return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/samples/${sampleId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete sample");
+      toast({ title: "Deleted", description: "Sample deleted successfully!" });
+      refetch();
+      setCurrentView("finalize");
+    } catch (error: any) {
+      toast({ variant: "destructive", description: error.message });
+    }
+  };
 
   const handleFinalizeReport = async (sampleId: string) => {
     if (!diagnosis[sampleId]) {
@@ -266,10 +300,21 @@ const PathologistDashboard = ({
       case "lbc-reporting":
         return (
           <LBCReporting
-            selectedSample={selectedSample} // Passes the patient name, age, etc.
+            selectedSample={selectedSample}
             onBack={() => {
-              setCurrentView("dashboard"); // Returns to the list view
-              setSelectedSample(null); // Clears the selection
+              setCurrentView("dashboard");
+              setSelectedSample(null);
+            }}
+          />
+        );
+
+      case "hpv-reporting":
+        return (
+          <HPVReporting
+            selectedSample={selectedSample}
+            onBack={() => {
+              setCurrentView("finalize");
+              setSelectedSample(null);
             }}
           />
         );
@@ -356,17 +401,60 @@ const PathologistDashboard = ({
                           </Badge>
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              console.log("Navigating to report..."); // Confirm click in F12 console
-                              setSelectedSample(sample);
-                              setCurrentView("reporting_test"); // Match the new name
-                            }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                          >
-                            Finalize
-                          </Button>
+                          <div className="flex items-center justify-center gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setSelectedSample(sample);
+                                if (sample.sample_type?.toLowerCase() === "hpv") {
+                                  setCurrentView("hpv-reporting");
+                                } else {
+                                  setCurrentView("reporting_test");
+                                }
+                              }}
+                              className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                            >
+                              Finalize
+                            </Button>
+
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 px-2 text-slate-500 hover:text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Delete
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent className="max-w-[400px]">
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>
+                                    Are you absolutely sure?
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently delete the sample
+                                    record from **Vyuhaa Med Data**. This action
+                                    cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel className="border-slate-200">
+                                    Cancel
+                                  </AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() =>
+                                      handleDeleteSample(sample.id)
+                                    }
+                                    className="bg-red-600 hover:bg-red-700"
+                                  >
+                                    Confirm Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </td>
                       </tr>
                     ))}

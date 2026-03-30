@@ -45,6 +45,7 @@ const LBCReporting = ({ selectedSample, onBack }) => {
 
   const [clinicalHistory, setClinicalHistory] = useState("");
   const [microscopyDescription, setMicroscopyDescription] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const EC2_IP = "http://localhost:5000"; // Updated to your EC2 IP
 
@@ -169,6 +170,7 @@ const LBCReporting = ({ selectedSample, onBack }) => {
   // --- API ACTIONS ---
   const handlePreview = async () => {
     try {
+      setIsLoading(true);
       const reportData = prepareReportData();
       const response = await fetch(`${EC2_IP}/api/report/preview`, {
         method: "POST",
@@ -183,11 +185,14 @@ const LBCReporting = ({ selectedSample, onBack }) => {
       }
     } catch (err) {
       alert("Server connection error.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleFinalizeReport = async () => {
     try {
+      setIsLoading(true);
       const reportData = prepareReportData();
       const response = await fetch(`${EC2_IP}/api/report/finalize`, {
         method: "POST",
@@ -208,6 +213,8 @@ const LBCReporting = ({ selectedSample, onBack }) => {
       }
     } catch (err) {
       alert("Server connection error.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -565,16 +572,27 @@ const LBCReporting = ({ selectedSample, onBack }) => {
               ))}
             </CardContent>
             <div className="p-4 border-t space-y-3">
+              {isLoading && (
+                <div className="flex items-center justify-center gap-2 py-2 text-blue-600">
+                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                  </svg>
+                  <span className="text-xs font-bold uppercase">Generating Report...</span>
+                </div>
+              )}
               <Button
                 variant="outline"
                 className="w-full py-6 border-blue-600 text-blue-600 font-bold uppercase text-[11px]"
                 onClick={handlePreview}
+                disabled={isLoading}
               >
                 <Eye className="mr-2 h-4 w-4" /> Report Preview in Browser
               </Button>
               <Button
                 className="w-full py-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold uppercase text-[11px]"
                 onClick={handleFinalizeReport}
+                disabled={isLoading}
               >
                 <CheckCircle className="mr-2 h-4 w-4" /> Finalize Report
               </Button>

@@ -10,6 +10,7 @@ export const useSamples = () => {
   const [samples, setSamples] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     fetch(`${API_BASE}/api/samples`, { headers: authHeaders() })
@@ -20,9 +21,11 @@ export const useSamples = () => {
       .then(setSamples)
       .catch(() => setError("Failed to load samples"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
 
-  return { samples, loading, error };
+  const refetch = () => setRefreshKey(prev => prev + 1);
+
+  return { samples, loading, error, refetch };
 };
 
 export const usePatients = () => {

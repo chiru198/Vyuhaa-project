@@ -38,31 +38,48 @@ export const generateLBCReport = (data, stream) => {
   const addressBarY = 80;
   doc.rect(margin, addressBarY, contentWidth, 42).fill(lightBlueBg);
 
+  // Address line with "Address:" label in bold
   doc
     .fontSize(8)
     .fillColor("black")
+    .font("Helvetica-Bold")
+    .text("Address: ", margin + 15, addressBarY + 8, { continued: true })
     .font("Helvetica")
     .text(
-      "C15, First floor, BioValley Incubation Center I-Hub, AMTZ Campus, Vizag, AP 530031",
-      margin,
-      addressBarY + 8,
-      { align: "center", width: contentWidth },
+      "C15, First floor, BioValley Incubation Center I-Hub, AMTZ Campus, Visakhapatnam, Andhra Pradesh 530031",
+      { continued: false },
     );
 
   const contactLineY = addressBarY + 24;
-  doc.fontSize(7.5).text("Phone: +91-9840582365", margin + 15, contactLineY);
+
+  // Phone — fixed left position
   doc
     .font("Helvetica-Bold")
+    .fontSize(7.5)
+    .fillColor("black")
+    .text("Phone: ", margin + 15, contactLineY, { continued: true })
+    .font("Helvetica")
+    .text("+91-9840582365", { continued: false });
+
+  // Report Date — fixed center position
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(7.5)
     .text(`Report Date: ${reportDate}`, margin, contactLineY, {
       align: "center",
       width: contentWidth,
     });
+
+  // Email — fixed right position using absolute x
+  const emailLabel = "Email: ";
+  const emailValue = "admin@vyuhaadata.com";
+  const emailX = pageWidth - margin - 120;
   doc
+    .font("Helvetica-Bold")
+    .fontSize(7.5)
+    .text(emailLabel, emailX, contactLineY, { continued: true })
     .font("Helvetica")
-    .text("Email: admin@vyuhaadata.com", margin, contactLineY, {
-      align: "right",
-      width: contentWidth - 15,
-    });
+    .text(emailValue, { continued: false });
 
   doc
     .fillColor(blueColor)
@@ -88,7 +105,7 @@ export const generateLBCReport = (data, stream) => {
   };
 
   let rY = gridY + 10;
-  drawField("Patient Name:", data.patient_name, margin + 20, margin + 100, rY);
+  drawField("Patient Name:", data.patient_name, margin + 20, margin + 135, rY);
   drawField(
     "Age / Sex:",
     `${data.age || "N/A"} / ${data.gender || "N/A"}`,
@@ -281,15 +298,6 @@ export const generateLBCReport = (data, stream) => {
     const sigPath = path.resolve(process.cwd(), "assets", "sunita_sig.png");
     if (fs.existsSync(sigPath)) {
       doc.image(sigPath, margin + 10, currentY, { width: 80 });
-      doc
-        .fillColor("black")
-        .font("Helvetica-Bold")
-        .fontSize(9)
-        .text("Dr. Sunita Samleti", margin + 10, currentY + 55);
-      doc
-        .font("Helvetica")
-        .fontSize(7.5)
-        .text("Consultant Pathologist", margin + 10, currentY + 65);
     }
   } catch (e) {}
 
