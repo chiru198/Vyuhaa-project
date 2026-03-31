@@ -351,16 +351,37 @@ const PathologistDashboard = ({
           startIndex + itemsPerPage,
         );
 
+        const getSampleTypeBadge = (type: string) => {
+          const t = type?.toLowerCase();
+          if (t === "hpv") return "bg-purple-100 text-purple-700 border-purple-200";
+          if (t === "lbc") return "bg-blue-100 text-blue-700 border-blue-200";
+          return "bg-slate-100 text-slate-600 border-slate-200";
+        };
+
+        const getStatusBadge = (status: string) => {
+          const s = status?.toLowerCase();
+          if (s === "urgent") return "bg-red-100 text-red-700 border-red-200";
+          if (s === "review") return "bg-yellow-100 text-yellow-700 border-yellow-200";
+          return "bg-emerald-100 text-emerald-700 border-emerald-200";
+        };
+
         return (
-          <div className="w-full flex flex-col items-start space-y-6 max-w-none">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <h2 className="text-2xl font-bold text-slate-800">
-                Finalize Patient Reports
-              </h2>
-              <div className="relative w-full md:w-72">
+          <div className="w-full flex flex-col space-y-6">
+            {/* PAGE HEADER */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800 tracking-tight">
+                  Finalize Patient Reports
+                </h2>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  {pendingReviews.length} sample{pendingReviews.length !== 1 ? "s" : ""} pending review
+                </p>
+              </div>
+              <div className="relative w-full md:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="Search barcode..."
-                  className="pl-4"
+                  placeholder="Search by barcode or patient name..."
+                  className="pl-9 bg-white border-slate-200 focus:border-blue-400"
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
                     setCurrentPage(1);
@@ -370,124 +391,166 @@ const PathologistDashboard = ({
             </div>
 
             {/* THE TABLE */}
-            <Card className="border-none shadow-sm overflow-hidden">
+            <div className="rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
-                  <thead className="bg-slate-50 border-y text-slate-600">
-                    <tr>
-                      <th className="px-6 py-4 font-semibold">
-                        Sample Barcode
-                      </th>
-                      <th className="px-6 py-4 font-semibold">Patient Name</th>
-                      <th className="px-6 py-4 font-semibold">Sample Type</th>
-                      <th className="px-6 py-4 text-center">Action</th>
+                  <thead>
+                    <tr className="bg-slate-800 text-white">
+                      <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-widest">#</th>
+                      <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-widest">Barcode</th>
+                      <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-widest">Patient Name</th>
+                      <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-widest">Age / Sex</th>
+                      <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-widest">Referring Doctor</th>
+                      <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-widest">Sample Type</th>
+                      <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-widest">Status</th>
+                      <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-widest">Date Collected</th>
+                      <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-widest text-center">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
-                    {currentTableData.map((sample) => (
-                      <tr
-                        key={sample.id}
-                        className="hover:bg-slate-50 transition-colors"
-                      >
-                        <td className="px-6 py-4 font-bold text-blue-700">
-                          {sample.barcode}
-                        </td>
-                        <td className="px-6 py-4 text-slate-700">
-                          {sample.patient_name}
-                        </td>
-                        <td className="px-6 py-4">
-                          <Badge variant="secondary">
-                            {sample.sample_type}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                setSelectedSample(sample);
-                                if (sample.sample_type?.toLowerCase() === "hpv") {
-                                  setCurrentView("hpv-reporting");
-                                } else {
-                                  setCurrentView("reporting_test");
-                                }
-                              }}
-                              className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                            >
-                              Finalize
-                            </Button>
-
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 px-2 text-slate-500 hover:text-red-600 hover:bg-red-50"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-1" />
-                                  Delete
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent className="max-w-[400px]">
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>
-                                    Are you absolutely sure?
-                                  </AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will permanently delete the sample
-                                    record from **Vyuhaa Med Data**. This action
-                                    cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel className="border-slate-200">
-                                    Cancel
-                                  </AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() =>
-                                      handleDeleteSample(sample.id)
-                                    }
-                                    className="bg-red-600 hover:bg-red-700"
-                                  >
-                                    Confirm Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
+                  <tbody>
+                    {currentTableData.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="px-6 py-16 text-center text-slate-400 italic text-sm">
+                          No pending samples found.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      currentTableData.map((sample, idx) => (
+                        <tr
+                          key={sample.id}
+                          className={`border-b border-slate-100 transition-colors hover:bg-blue-50/40 ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}
+                        >
+                          <td className="px-5 py-4 text-xs text-slate-400 font-medium">
+                            {startIndex + idx + 1}
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className="font-bold text-blue-700 text-sm tracking-wide">
+                              {sample.barcode}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className="font-semibold text-slate-800 text-sm">
+                              {sample.patient_name}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-sm text-slate-600">
+                            {sample.age || "—"} / {sample.gender || "—"}
+                          </td>
+                          <td className="px-5 py-4 text-sm text-slate-600">
+                            {sample.doctor_name || "—"}
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${getSampleTypeBadge(sample.sample_type)}`}>
+                              {sample.sample_type?.toUpperCase() || "—"}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${getStatusBadge(sample.status)}`}>
+                              {sample.status?.charAt(0).toUpperCase() + sample.status?.slice(1) || "Pending"}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-sm text-slate-500">
+                            {sample.collected_at
+                              ? new Date(sample.collected_at).toLocaleDateString("en-GB", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })
+                              : "—"}
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex items-center justify-center gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedSample(sample);
+                                  if (sample.sample_type?.toLowerCase() === "hpv") {
+                                    setCurrentView("hpv-reporting");
+                                  } else {
+                                    setCurrentView("reporting_test");
+                                  }
+                                }}
+                                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 h-8 shadow-sm"
+                              >
+                                <FileEdit className="h-3.5 w-3.5 mr-1.5" />
+                                Finalize
+                              </Button>
+
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 px-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent className="max-w-[400px]">
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                      Are you absolutely sure?
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will permanently delete the sample
+                                      record from Vyuhaa Med Data. This action
+                                      cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel className="border-slate-200">
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteSample(sample.id)}
+                                      className="bg-red-600 hover:bg-red-700"
+                                    >
+                                      Confirm Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
-              {/* Pagination controls stay here at the bottom of the table */}
-              <div className="bg-white px-6 py-4 border-t flex items-center justify-between">
+
+              {/* PAGINATION */}
+              <div className="bg-white px-6 py-4 border-t border-slate-100 flex items-center justify-between">
                 <p className="text-xs text-slate-500">
-                  Page {currentPage} of {totalPages}
+                  Showing <span className="font-semibold text-slate-700">{startIndex + 1}–{Math.min(startIndex + itemsPerPage, pendingReviews.length)}</span> of <span className="font-semibold text-slate-700">{pendingReviews.length}</span> results
                 </p>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-8 px-3 text-xs"
                     onClick={() => setCurrentPage((p) => p - 1)}
                     disabled={currentPage === 1}
                   >
+                    <ChevronLeft className="h-3.5 w-3.5 mr-1" />
                     Previous
                   </Button>
+                  <span className="text-xs text-slate-500 px-2">
+                    Page {currentPage} of {totalPages || 1}
+                  </span>
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-8 px-3 text-xs"
                     onClick={() => setCurrentPage((p) => p + 1)}
-                    disabled={currentPage === totalPages}
+                    disabled={currentPage === totalPages || totalPages === 0}
                   >
-                    Next 10
+                    Next
+                    <ChevronRight className="h-3.5 w-3.5 ml-1" />
                   </Button>
                 </div>
               </div>
-            </Card>
-
-            {/* MODAL OVERLAY: This fixes the scrolling issue */}
+            </div>
           </div>
         );
 

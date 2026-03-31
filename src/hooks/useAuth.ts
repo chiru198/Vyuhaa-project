@@ -66,8 +66,8 @@ export const useAuth = () => {
   ================================ */
   const signOut = () => {
     localStorage.removeItem("user");
-    // Remove token removal if you aren't saving it anymore
     localStorage.removeItem("token");
+    localStorage.removeItem("currentView");
     setUser(null);
     window.location.href = "/"; // Redirect to root
   };

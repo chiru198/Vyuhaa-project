@@ -17,7 +17,9 @@ interface DashboardProps {
 }
 
 const Dashboard = ({ user, onLogout }: DashboardProps) => {
-  const [currentView, setCurrentView] = useState("dashboard");
+  const [currentView, setCurrentView] = useState(() => {
+    return localStorage.getItem("currentView") || "dashboard";
+  });
   const { samples, loading } = useSamples();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -26,16 +28,18 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
   const navigateTo = (view: string) => {
     window.history.pushState({ view }, "", window.location.pathname);
     setCurrentView(view);
+    localStorage.setItem("currentView", view);
   };
 
   // Handle browser back/forward button
   useEffect(() => {
-    // Set the initial history entry
-    window.history.replaceState({ view: "dashboard" }, "", window.location.pathname);
+    const savedView = localStorage.getItem("currentView") || "dashboard";
+    window.history.replaceState({ view: savedView }, "", window.location.pathname);
 
     const handlePopState = (event: PopStateEvent) => {
       const view = event.state?.view ?? "dashboard";
       setCurrentView(view);
+      localStorage.setItem("currentView", view);
     };
 
     window.addEventListener("popstate", handlePopState);
