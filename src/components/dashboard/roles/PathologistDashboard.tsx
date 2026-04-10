@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import LBCReporting from "@/components/LBCReporting";
 import HPVReporting from "@/components/HPVReporting";
+import CoTestReporting from "@/components/CoTestReporting";
 import {
   Loader2,
   FileCheck,
@@ -200,19 +201,18 @@ const PathologistDashboard = ({
               <div className="lg:col-span-2">
                 <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                   <ClipboardList className="h-5 w-5 text-blue-600" />
-                  Active Queue Summary ({reviewQueue.length})
+                  Active Queue Summary ({pendingReviews.length})
                 </h2>
 
                 <Card>
                   <CardContent className="p-0">
                     <div className="divide-y">
-                      {/* FIXED: Removed .slice(0, 5) to show all items */}
-                      {reviewQueue.length === 0 ? (
+                      {pendingReviews.length === 0 ? (
                         <div className="p-10 text-center text-slate-500 italic">
                           No pending reviews found.
                         </div>
                       ) : (
-                        reviewQueue.map((s) => (
+                        pendingReviews.map((s) => (
                           <div
                             key={s.id}
                             className="p-4 flex justify-between items-center hover:bg-slate-50 transition-colors"
@@ -311,6 +311,17 @@ const PathologistDashboard = ({
       case "hpv-reporting":
         return (
           <HPVReporting
+            selectedSample={selectedSample}
+            onBack={() => {
+              setCurrentView("finalize");
+              setSelectedSample(null);
+            }}
+          />
+        );
+
+      case "cotest-reporting":
+        return (
+          <CoTestReporting
             selectedSample={selectedSample}
             onBack={() => {
               setCurrentView("finalize");
@@ -464,8 +475,11 @@ const PathologistDashboard = ({
                                 size="sm"
                                 onClick={() => {
                                   setSelectedSample(sample);
-                                  if (sample.sample_type?.toLowerCase() === "hpv") {
+                                  const type = sample.sample_type?.toLowerCase();
+                                  if (type === "hpv") {
                                     setCurrentView("hpv-reporting");
+                                  } else if (type === "co-test") {
+                                    setCurrentView("cotest-reporting");
                                   } else {
                                     setCurrentView("reporting_test");
                                   }

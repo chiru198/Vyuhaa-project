@@ -54,7 +54,7 @@ const Sidebar = ({ user, currentView, setCurrentView }: SidebarProps) => {
       case 'accession':
         return [
           { id: 'dashboard', label: 'Dashboard', icon: Home },
-          { id: 'add-sample', label: 'Add New Sample', icon: Upload },
+          { id: 'select-sample-type', label: 'Add New Sample', icon: Upload },
           { id: 'sample-queue', label: 'Sample Queue', icon: FileText },
           { id: 'rejected', label: 'Rejected Samples', icon: AlertCircle },
           { id: 'track', label: 'Track Samples', icon: Search },

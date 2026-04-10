@@ -14,6 +14,7 @@ import { companyLogo } from "./logo.js"; // This is your company logo in base64 
 import multer from "multer";
 import { generateLBCReport } from "./pdfGenerator.js"; // <--- Import here
 import { generateHPVReport } from "./HPVPdfGenerator.js"; // <--- HPV Report
+import { generateCoTestReport } from "./cotestPdfGenerator.js"; // <--- Co-Test Report
 
 // Create directory if it doesn't exist
 // const uploadDir = "uploads/pathology";
@@ -26,11 +27,12 @@ const app = express();
 // Also update Express body-parser limits
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true })); // This defines 'upload'
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Logic: Allow your frontend to access the API
 app.use(
   cors({
-    origin: "http://localhost:8080", // Replace with your frontend URL if different
+    origin: "http://localhost:8081", // Replace with your frontend URL if different
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   }),
@@ -299,23 +301,20 @@ app.get("/api/pathologist/review-queue", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-// --- DELETE SAMPLE ---
+// --- DELETE SAMPLE (soft delete — sets status to archived) ---
 app.delete("/api/samples/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    // Delete related test_results first (foreign key)
-    await pool.query("DELETE FROM test_results WHERE sample_id = $1", [id]);
-    // Then delete the sample
     const result = await pool.query(
-      "DELETE FROM samples WHERE id = $1 RETURNING id",
+      "UPDATE samples SET status = 'archived' WHERE id = $1 RETURNING id",
       [id]
     );
     if (result.rowCount === 0) {
       return res.status(404).json({ error: "Sample not found" });
     }
-    res.json({ message: "Sample deleted successfully" });
+    res.json({ message: "Sample archived successfully" });
   } catch (err) {
-    console.error("DELETE SAMPLE ERROR:", err);
+    console.error("ARCHIVE SAMPLE ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -400,6 +399,30 @@ app.post("/api/report/hpv/finalize", (req, res) => {
   }
 });
 
+// ─── CO-TEST ROUTES ───────────────────────────────────────────────────────────
+app.post("/api/report/cotest/preview", (req, res) => {
+  res.setHeader("Content-Type", "application/pdf");
+  try {
+    generateCoTestReport(req.body, res);
+  } catch (error) {
+    console.error("Co-Test PDF Preview Error:", error);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to generate Co-Test report" });
+  }
+});
+
+app.post("/api/report/cotest/finalize", (req, res) => {
+  const { barcode, mr_number } = req.body;
+  const fileName = `COTEST_${(barcode || mr_number || "report").replace(/[/\\?%*:|"<>]/g, "-")}.pdf`;
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  try {
+    generateCoTestReport(req.body, res);
+  } catch (error) {
+    console.error("Co-Test PDF Finalize Error:", error);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to generate Co-Test report" });
+  }
+});
+
 //This post api endpoint is used for generating a PDF for preview purposes only. It accepts the same data as the finalize route but does not save anything to the database or filesystem. Instead, it generates the PDF in memory and sends it back to the frontend, where you can open it in a new tab for previewing before finalizing. This allows you to see exactly how the report will look with the real data before you commit to saving it.
 app.post("/api/report/preview", (req, res) => {
   res.setHeader("Content-Type", "application/pdf");
@@ -448,14 +471,17 @@ app.post("/api/accession/add-sample", async (req, res) => {
     doctor_name,
     hospital_name,
     clinical_history,
+    notes,
     image1,
     image2,
-    collected_at, 
+    image3,
+    collected_at,
   } = req.body;
   console.log(
     "image is coming in backend",
     image1 ? "Yes" : "No",
     image2 ? "Yes" : "No",
+    image3 ? "Yes" : "No",
   );
   const client = await pool.connect();
 
@@ -487,6 +513,7 @@ app.post("/api/accession/add-sample", async (req, res) => {
 
     const image1Path = saveImage(image1, "img1");
     const image2Path = saveImage(image2, "img2");
+    const image3Path = saveImage(image3, "img3");
 
     // --- 2. DATABASE TRANSACTION ---
     await client.query("BEGIN");
@@ -502,11 +529,11 @@ app.post("/api/accession/add-sample", async (req, res) => {
     // STEP 2: Insert into samples (Include image paths)
     const sampleQuery = `
       INSERT INTO samples (
-        barcode, patient_id, customer_id, lab_id, sample_type, 
-        status, collected_at, doctor_name, hospital_name, 
-        clinical_history, image1_path, image2_path
+        barcode, patient_id, customer_id, lab_id, sample_type,
+        status, collected_at, doctor_name, hospital_name,
+        clinical_history, notes, image1_path, image2_path, image3_path
       )
-      VALUES ($1, $2, $3, $4, $5, 'received', $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, 'received', $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *;
     `;
 
@@ -516,12 +543,14 @@ app.post("/api/accession/add-sample", async (req, res) => {
       accession_id,
       lab_id,
       sample_type,
-      collected_at || new Date(), // Use frontend date, fallback to NOW if empty
+      collected_at || new Date(),
       doctor_name || null,
       hospital_name || null,
       clinical_history || null,
+      notes || null,
       image1Path,
       image2Path,
+      image3Path,
     ]);
 
     await client.query("COMMIT");
@@ -784,7 +813,9 @@ app.get("/api/samples", async (req, res) => {
         s.collected_at,
         s.clinical_history,
         s.image1_path,
-        s.image2_path,  
+        s.image2_path,
+        s.image3_path,
+        s.notes,
         p.name AS patient_name, 
         p.age,
         p.gender,

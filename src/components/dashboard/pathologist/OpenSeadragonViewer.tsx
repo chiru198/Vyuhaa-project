@@ -86,6 +86,7 @@ const OpenSeadragonViewer = forwardRef<
   ) => {
     const viewerRef = useRef<HTMLDivElement>(null);
     const overlayRef = useRef<HTMLDivElement>(null);
+    const navPanelRef = useRef<HTMLDivElement>(null);
     const osdViewerRef = useRef<OpenSeadragon.Viewer | null>(null);
     const { toast } = useToast();
 
@@ -107,6 +108,35 @@ const OpenSeadragonViewer = forwardRef<
     const [brightness, setBrightness] = useState(100);
     const [contrast, setContrast] = useState(100);
     const [saturation, setSaturation] = useState(100);
+
+    // Custom navigator panel
+    const [navThumbUrl, setNavThumbUrl] = useState<string>("");
+    const [navMinimized, setNavMinimized] = useState(false);
+    const [viewportRect, setViewportRect] = useState({ left: 0, top: 0, width: 100, height: 100 });
+    const isDraggingNav = useRef(false);
+    const navDragAnchor = useRef<{ mx: number; my: number; rl: number; rt: number } | null>(null);
+    const imgAspectRef = useRef(0.75);
+
+    const updateNavViewport = useCallback((v: OpenSeadragon.Viewer) => {
+      const tiledImage = v.world.getItemAt(0);
+      if (!tiledImage) return;
+      const bounds = v.viewport.getBounds(true);
+      const aspect = imgAspectRef.current || 0.75;
+
+      // Viewport x: 0→1 = full image width, y: 0→aspect = full image height
+      // Convert the visible window into [0..100%] of the image
+      const visLeft   = Math.max(0, bounds.x);
+      const visRight  = Math.min(1, bounds.x + bounds.width);
+      const visTop    = Math.max(0, bounds.y / aspect);
+      const visBottom = Math.min(1, (bounds.y + bounds.height) / aspect);
+
+      setViewportRect({
+        left:   visLeft   * 100,
+        top:    visTop    * 100,
+        width:  Math.max(2, (visRight  - visLeft)   * 100),
+        height: Math.max(2, (visBottom - visTop)    * 100),
+      });
+    }, []);
 
     // Use the uploaded slide image or fallback to default
     const slideImageUrl =
@@ -189,7 +219,7 @@ const OpenSeadragonViewer = forwardRef<
     useEffect(() => {
       //if (!viewerRef.current || !slideInfo) return;
       // if (!viewerRef.current || !slideInfo || !tileName) return;
-      if (!viewerRef.current || !tileName) return;
+      if (!viewerRef.current) return;
       const initializeViewer = () => {
         if (!viewerRef.current) return;
 
@@ -235,7 +265,7 @@ const OpenSeadragonViewer = forwardRef<
           prefixUrl:
             "https://cdn.jsdelivr.net/npm/openseadragon@4.1/build/openseadragon/images/",
           // tileSources: tileSource,
-          tileSources: `http://localhost:8000/api/fastapi/dzi/${Doctor}/${tileName}.dzi`,
+          tileSources: `http://localhost:8000/slide.dzi`,
           animationTime: 0.5,
           blendTime: 0.1,
           constrainDuringPan: true,
@@ -245,11 +275,7 @@ const OpenSeadragonViewer = forwardRef<
           zoomPerScroll: 1.4,
           //maxZoomLevel: 2,
           minZoomLevel: 0.5,
-          showNavigator: true,
-          navigatorPosition: "BOTTOM_RIGHT",
-          navigatorSizeRatio: 0.15,
-          navigatorMaintainSizeRatio: true,
-          navigatorAutoFade: false,
+          showNavigator: false,
           showNavigationControl: false,
           gestureSettingsMouse: {
             clickToZoom: false,
@@ -259,7 +285,7 @@ const OpenSeadragonViewer = forwardRef<
             pinchToZoom: true,
             flickEnabled: true,
           },
-          crossOriginPolicy: "Anonymous",
+          crossOriginPolicy: false,
           ajaxWithCredentials: false,
         });
 
@@ -276,6 +302,7 @@ const OpenSeadragonViewer = forwardRef<
           if (center) {
             setViewportInfo({ x: center.x, y: center.y });
           }
+          updateNavViewport(viewer);
         });
         // viewer.addHandler("open", () => {
         //   console.log("OpenSeadragon viewer opened");
@@ -297,10 +324,21 @@ const OpenSeadragonViewer = forwardRef<
         //   viewer.viewport.goHome();
         // });
         viewer.addHandler("open", () => {
-          // Check if viewport is available to prevent "undefined" errors
           if (viewer.viewport) {
-            viewer.viewport.goHome(true); // 'true' makes it an immediate jump without animation
+            viewer.viewport.goHome(true);
           }
+          // Extract thumbnail from lowest DZI level
+          const tiledImage = viewer.world.getItemAt(0);
+          if (tiledImage) {
+            const source = tiledImage.source as any;
+            const dims = source?.dimensions;
+            if (dims && dims.x && dims.y) {
+              imgAspectRef.current = dims.y / dims.x;
+            }
+            // Use the dedicated /thumbnail endpoint — full slide at 512x512
+            setNavThumbUrl("http://localhost:8000/thumbnail");
+          }
+          updateNavViewport(viewer);
         });
 
         // viewer.addHandler('open', () => {
@@ -917,6 +955,165 @@ const OpenSeadragonViewer = forwardRef<
             )}
           </div>
 
+          {/* ── CUSTOM NDPI-STYLE NAVIGATOR PANEL ── */}
+          <div
+            ref={navPanelRef}
+            className="absolute z-30"
+            style={{ bottom: 40, right: 10, width: 230, userSelect: "none" }}
+          >
+            {/* Panel header */}
+            <div
+              style={{
+                background: "linear-gradient(135deg, #0d3b6e 0%, #1565c0 100%)",
+                borderRadius: "6px 6px 0 0",
+                padding: "5px 10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                cursor: "default",
+              }}
+            >
+              <span style={{ color: "#90caf9", fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>
+                📍 SLIDE OVERVIEW
+              </span>
+              <button
+                onClick={() => setNavMinimized((v) => !v)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#90caf9",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  lineHeight: 1,
+                  padding: "0 2px",
+                }}
+                title={navMinimized ? "Expand" : "Minimize"}
+              >
+                {navMinimized ? "▲" : "▼"}
+              </button>
+            </div>
+
+            {/* Panel body */}
+            {!navMinimized && (
+              <div
+                style={{
+                  background: "#f0f0f0",
+                  border: "2px solid #1565c0",
+                  borderTop: "none",
+                  borderRadius: "0 0 0 0",
+                  overflow: "hidden",
+                  position: "relative",
+                  height: 155,
+                }}
+                onClick={(e) => {
+                  // Click anywhere on thumbnail → pan main viewer to that spot
+                  const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                  const pctX = (e.clientX - rect.left) / rect.width;   // 0..1 of image width
+                  const pctY = (e.clientY - rect.top)  / rect.height;  // 0..1 of image height
+                  const viewer = osdViewerRef.current;
+                  if (!viewer) return;
+                  const aspect = imgAspectRef.current || 0.75;
+                  // viewport coords: x ∈ [0,1], y ∈ [0, aspect]
+                  viewer.viewport.panTo(new OpenSeadragon.Point(pctX, pctY * aspect), false);
+                }}
+              >
+                {/* Thumbnail image — try multiple DZI levels until one loads */}
+                <img
+                  src={navThumbUrl || "http://localhost:8000/thumbnail"}
+                  alt="Slide Overview"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "fill",
+                    display: "block",
+                    opacity: 1,
+                  }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).onerror = null;
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+
+                {/* Red viewport indicator box */}
+                <div
+                  style={{
+                    position: "absolute",
+                    left: `${viewportRect.left}%`,
+                    top: `${viewportRect.top}%`,
+                    width: `${viewportRect.width}%`,
+                    height: `${viewportRect.height}%`,
+                    border: "2px solid #ff3333",
+                    boxShadow: "0 0 0 1px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,50,50,0.3)",
+                    background: "rgba(255, 50, 50, 0.08)",
+                    cursor: "move",
+                    boxSizing: "border-box",
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    isDraggingNav.current = true;
+                    navDragAnchor.current = {
+                      mx: e.clientX,
+                      my: e.clientY,
+                      rl: viewportRect.left,
+                      rt: viewportRect.top,
+                    };
+                    const onMove = (me: MouseEvent) => {
+                      if (!isDraggingNav.current || !navDragAnchor.current || !navPanelRef.current) return;
+                      // find the thumbnail body div
+                      const thumbDivs = navPanelRef.current.querySelectorAll("div");
+                      let panelRect: DOMRect | null = null;
+                      thumbDivs.forEach((d) => {
+                        if (d.style.height === "150px" || d.getAttribute("style")?.includes("height: 150")) {
+                          panelRect = d.getBoundingClientRect();
+                        }
+                      });
+                      if (!panelRect) return;
+                      const pr = panelRect as DOMRect;
+                      // delta in image-percentage units
+                      const dx = ((me.clientX - navDragAnchor.current.mx) / pr.width)  * 100;
+                      const dy = ((me.clientY - navDragAnchor.current.my) / pr.height) * 100;
+                      // new top-left of the red box (clamped so box stays inside thumbnail)
+                      const newLeft = Math.max(0, Math.min(100 - viewportRect.width,  navDragAnchor.current.rl + dx));
+                      const newTop  = Math.max(0, Math.min(100 - viewportRect.height, navDragAnchor.current.rt + dy));
+                      // centre of red box → viewport coords
+                      const viewer = osdViewerRef.current;
+                      if (viewer) {
+                        const aspect = imgAspectRef.current || 0.75;
+                        const centerX = (newLeft + viewportRect.width  / 2) / 100;         // 0..1
+                        const centerY = (newTop  + viewportRect.height / 2) / 100 * aspect; // 0..aspect
+                        viewer.viewport.panTo(new OpenSeadragon.Point(centerX, centerY), true);
+                      }
+                    };
+                    const onUp = () => {
+                      isDraggingNav.current = false;
+                      navDragAnchor.current = null;
+                      window.removeEventListener("mousemove", onMove);
+                      window.removeEventListener("mouseup", onUp);
+                    };
+                    window.addEventListener("mousemove", onMove);
+                    window.addEventListener("mouseup", onUp);
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Footer hint */}
+            {!navMinimized && (
+              <div style={{
+                background: "#e8f0fe",
+                borderRadius: "0 0 6px 6px",
+                padding: "3px 8px",
+                borderLeft: "2px solid #1565c0",
+                borderRight: "2px solid #1565c0",
+                borderBottom: "2px solid #1565c0",
+              }}>
+                <span style={{ color: "#1565c0", fontSize: 9, fontWeight: 600 }}>
+                  Click overview or drag red box to navigate
+                </span>
+              </div>
+            )}
+          </div>
+
           {/* Coordinates and info overlay */}
           <div className="absolute bottom-2 left-2 bg-black/75 text-white text-xs px-2 py-1 rounded z-20">
             Zoom: {zoomPercentage}% | Position: ({viewportInfo.x.toFixed(3)},{" "}
@@ -926,7 +1123,7 @@ const OpenSeadragonViewer = forwardRef<
 
           {/* Scale bar */}
           {zoomLevel > 1 && (
-            <div className="absolute bottom-2 right-24 bg-black/75 text-white text-xs px-2 py-1 rounded z-20">
+            <div className="absolute top-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded z-20" style={{ zIndex: 25 }}>
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-1 bg-white"></div>
                 <span>{Math.round(100 / zoomLevel)}μm</span>

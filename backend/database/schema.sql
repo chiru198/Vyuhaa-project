@@ -27,7 +27,7 @@ CREATE TABLE patients (
 
 CREATE TABLE samples (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  barcode VARCHAR(50) UNIQUE NOT NULL,
+  barcode VARCHAR(50) NOT NULL,
   patient_id UUID REFERENCES patients(id),
   lab_id UUID REFERENCES labs(id),
   sample_type VARCHAR(50),

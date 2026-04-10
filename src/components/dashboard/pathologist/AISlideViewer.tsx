@@ -145,15 +145,12 @@ const AISlideViewer = ({ sampleData }: AISlideViewerProps) => {
         <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
           AI Slide Analysis
         </h2>
-        <div className="flex space-x-2">
-          <Badge variant="outline" className="flex gap-1">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="flex gap-1 text-xs">
             <Microscope className="h-3 w-3" /> Digital Pathology
           </Badge>
-          <Badge
-            variant="outline"
-            className="bg-green-50 text-green-700 border-green-200"
-          >
-            Live Engine
+          <Badge className="bg-slate-700 text-white text-xs">
+            8 Cases in Queue
           </Badge>
         </div>
       </div>
@@ -162,17 +159,20 @@ const AISlideViewer = ({ sampleData }: AISlideViewerProps) => {
         {/* CENTER SECTION: VIEWER */}
         <div className="lg:col-span-3">
           <Card className="h-full flex flex-col overflow-hidden">
-            <CardHeader className="border-b bg-slate-50/50">
+            <CardHeader className="border-b bg-white py-3 px-4">
               <div className="flex justify-between items-center">
-                <CardTitle className="text-lg font-bold">
-                  Slide ID:{" "}
+                <CardTitle className="text-base font-bold text-slate-800">
+                  Slide Analysis -{" "}
                   <span className="text-blue-600">{currentSlide.barcode}</span>
                 </CardTitle>
-                <div
-                  className={`flex items-center gap-1 font-medium ${getStatusColor(currentSlide.status)}`}
-                >
-                  {getStatusIcon(currentSlide.status)}
-                  <span className="capitalize">{currentSlide.status}</span>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-bold">
+                    {currentSlide.sample_type?.toUpperCase() || "LBC"}
+                  </Badge>
+                  <div className={`flex items-center gap-1 text-sm font-medium ${getStatusColor(currentSlide.status)}`}>
+                    {getStatusIcon(currentSlide.status)}
+                    <span className="capitalize">{currentSlide.status}</span>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -184,24 +184,24 @@ const AISlideViewer = ({ sampleData }: AISlideViewerProps) => {
                 className="h-full flex flex-col"
               >
                 <div className="bg-white px-4 border-b">
-                  <TabsList className="bg-transparent h-12">
+                  <TabsList className="bg-transparent h-11">
                     <TabsTrigger
                       value="viewer"
-                      className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none bg-transparent"
+                      className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none bg-transparent text-sm"
                     >
-                      <Eye className="h-4 w-4 mr-2" /> Viewer
+                      <Eye className="h-4 w-4 mr-2" /> Slide Viewer
                     </TabsTrigger>
                     <TabsTrigger
                       value="grid"
-                      className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none bg-transparent"
+                      className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none bg-transparent text-sm"
                     >
-                      <Grid3X3 className="h-4 w-4 mr-2" /> Grid
+                      <Grid3X3 className="h-4 w-4 mr-2" /> Grid View
                     </TabsTrigger>
                   </TabsList>
                 </div>
 
                 <TabsContent value="viewer" className="flex-grow m-0">
-                  <SlideViewer imagingUrl={currentSlide.imaging_url} />
+                  <SlideViewer imagingUrl={currentSlide.imaging_url} sampleData={currentSlide} />
                 </TabsContent>
 
                 <TabsContent
@@ -216,10 +216,10 @@ const AISlideViewer = ({ sampleData }: AISlideViewerProps) => {
         </div>
 
         {/* RIGHT SIDEBAR: INFORMATION */}
-        <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+        <div className="space-y-4 overflow-y-auto pr-1 custom-scrollbar">
           <CaseNavigation
             currentCaseId={currentSlide.id}
-            cases={[]} // Can be populated from a useReviewQueue hook if needed
+            cases={[]}
             onCaseSelect={() => {}}
           />
 
